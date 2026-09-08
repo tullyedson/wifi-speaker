@@ -12,11 +12,13 @@ The active branch rules require:
 - Fresh review after commits change an approved diff; stale approvals are dismissed.
 - A successful `windows` check from GitHub Actions in the **Verify** workflow, tested with the latest base branch.
 - Resolution of all review conversations before merging.
-- No direct pushes, force pushes, branch deletion or automatic administrator bypass.
+- No direct pushes, force pushes or branch deletion.
+
+Only the repository owner has a **pull-request-only bypass** for deliberate merge overrides. Other contributors and administrators have no bypass. Changes still go through a PR, even when the owner chooses to override review or check requirements.
 
 The ruleset is configured on GitHub. Copying CODEOWNERS to another repository does not enable these restrictions there; maintainers of forks manage their own rules.
 
-GitHub [does not allow PR authors to approve their own PRs](https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/approving-a-pull-request-with-required-reviews). Keep a contribution or automation account separate from the owner who will review. A PR opened under the owner's login cannot receive that owner's approval. Do not use the owner's credentials to approve contributions automatically or weaken the branch rules to get a PR merged.
+GitHub [does not allow PR authors to approve their own PRs](https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/approving-a-pull-request-with-required-reviews). The owner can inspect an owner-authored PR and explicitly use the merge override instead. A separate author account is optional. Automation must not submit approval or use the owner's bypass without the owner's explicit authorization for that merge.
 
 ## Contribution workflow
 

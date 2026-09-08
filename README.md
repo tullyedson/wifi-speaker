@@ -173,7 +173,7 @@ For deeper diagnosis, follow [installation and troubleshooting](docs/installatio
 
 ## Development and contributions
 
-All changes to `main` go through a pull request and require approval from the repository owner listed in `.github/CODEOWNERS`. New changes dismiss earlier approvals. The Windows verification check must pass against the current base branch, and review conversations must be resolved. The rule applies to administrators too, with no bypass accounts; force pushes and branch deletion are blocked.
+All changes to `main` go through a pull request and require approval from the repository owner listed in `.github/CODEOWNERS`. New changes dismiss earlier approvals. The Windows verification check must pass against the current base branch, and review conversations must be resolved. Only the repository owner has an explicit override when merging a PR, including an owner-authored PR. Direct pushes, force pushes and branch deletion remain blocked.
 
 Fork the project, make a focused branch and open a PR. The [contribution guide](CONTRIBUTING.md) explains review and validation, including GitHub's restriction on approving your own PR. See [verification](docs/verification.md) for checks and [dependency notices](docs/dependencies.md) for third-party attribution.
 
