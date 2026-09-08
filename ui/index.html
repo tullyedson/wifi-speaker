@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Smart Speaker</title><link rel="stylesheet" href="style.css"><script defer src="app.js"></script></head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-icon" aria-hidden="true">▥</span><div>Smart Speaker<small>LOCAL VOICE HUB</small></div></div>
+    <nav aria-label="Settings sections">
+      <button class="nav active" data-page="speakers"><span>◉</span> Speakers</button>
+      <button class="nav" data-page="connection"><span>↔</span> Connections</button>
+      <button class="nav" data-page="speech"><span>≋</span> Voice &amp; listening</button>
+      <button class="nav" data-page="guide"><span>⌘</span> App API</button>
+    </nav>
+    <div class="sidebar-bottom"><span class="local-dot"></span> Speech stays on this PC<p>Only matching prompts go to your chosen app.</p><button id="pause" class="subtle">Pause listening</button><label class="check"><input id="startup" type="checkbox"> Start with Windows</label><small>Closing this window keeps the tray app running.</small></div>
+  </aside>
+  <main>
+    <header><div><div class="eyebrow">YOUR HOME, YOUR ASSISTANT</div><h1 id="page-title">A voice for every room.</h1><p id="page-subtitle">Connect your speakers and give each one a place.</p></div><span id="hub-badge" class="badge neutral">Starting…</span></header>
+    <div id="notice" role="status" aria-live="polite" hidden></div>
+    <div class="metrics"><div><span id="connected-count">0 / 0</span><small>speakers online</small></div><div><span id="model-state">Checking</span><small>local speech model</small></div><div><span id="wake-display">Speaker</span><small>listening for</small></div></div>
+    <section id="page-speakers" class="page">
+      <div class="section-heading"><div><h2>Your speakers</h2><p>Names and tags travel with every request.</p></div><button id="add-speaker" class="primary">+ Add speaker</button></div>
+      <div id="speaker-list"></div>
+      <div id="empty-speakers" class="empty"><div class="empty-icon">≋</div><h3>Connect your first speaker.</h3><p>Add a speaker, save your settings, then use its setup details to connect it to Wi-Fi.</p></div>
+      <div class="note"><strong>Always available while this PC is awake.</strong> The hub listens for a full phrase, recognizes it locally, and sends it to your app when it contains a configured wake name. Listening pauses on a speaker while its reply plays.</div>
+    </section>
+    <section id="page-connection" class="page" hidden>
+      <div class="card"><h2>Where prompts go</h2><p>Connect an app webhook or an OpenAI-compatible chat endpoint.</p><div class="fields">
+        <label>Connection type<select id="backend_mode"><option value="webhook">App webhook</option><option value="open_ai">OpenAI-compatible chat</option></select></label>
+        <label>Prompt destination URL<input id="outbound_url" type="url" placeholder="https://llm.example.com/v1/chat/completions"><small>Use the complete endpoint path, including /v1/chat/completions for chat APIs.</small></label>
+        <label>Destination bearer token <span class="optional">optional</span><input id="outbound_token" type="password" autocomplete="off" spellcheck="false"></label>
+        <div id="openai-fields" class="fields" hidden>
+          <label>Model name<input id="model" placeholder="Your model ID" spellcheck="false"></label>
+          <label>Response token limit<input id="model_max_tokens" type="number" min="64" max="16384"><small>Includes reasoning tokens where the model uses them. Increase this if a response runs out of room.</small></label>
+          <details><summary>Optional caller routing</summary><div class="fields">
+            <label>Hub instance ID<input id="router_instance_id" maxlength="64" spellcheck="false" autocomplete="off"><small>Choose a unique ID if your endpoint needs stable per-speaker callers.</small></label>
+            <label>Caller ID header<input id="router_header_name" maxlength="64" placeholder="X-Client-Instance" spellcheck="false" autocomplete="off"><small>Only for endpoints that document an X- header for caller identity. Leave blank to disable.</small></label>
+          </div></details>
+          <label>Spoken response instructions<textarea id="system_prompt" rows="3"></textarea></label>
+        </div>
+      </div></div>
+      <div class="card"><h2>Where replies arrive</h2><p>The hub serves the callback API and connects your speakers on this port.</p><div class="fields two">
+        <label>Listen URL<input id="listen_url" type="url" placeholder="http://0.0.0.0:48490"><small>0.0.0.0 listens on this PC’s network interfaces.</small></label>
+        <label>PC address reachable by speakers and apps<input id="public_url" type="url" placeholder="http://192.0.2.10:48490"><small>Replace the example with this PC’s LAN IP. 127.0.0.1 is for local testing.</small></label>
+        <label class="wide">Response callback URL<div class="copy-row"><input id="callback-url" readonly><button id="copy-callback" class="secondary" type="button">Copy</button></div></label>
+        <label class="wide">App API bearer token<div class="copy-row"><input id="api_token" type="password" spellcheck="false" autocomplete="off"><button id="copy-api-token" type="button" class="secondary">Copy</button></div><small>Give this token to apps that send replies. Each speaker has a separate token.</small></label>
+        <label>Response timeout (seconds)<input id="response_timeout_seconds" type="number" min="10" max="600"></label>
+      </div><div class="note">Use a trusted local network. Speaker traffic uses HTTP and WebSocket. Allow this program through Windows Firewall on your private network so speakers can reach it.</div></div>
+    </section>
+    <section id="page-speech" class="page" hidden>
+      <div class="card"><h2>Choose a wake name</h2><p>Recognition runs on this PC. The name can be at the start, middle, or end of a phrase.</p><div class="fields">
+        <label>Wake names, separated by commas<input id="wake_names" placeholder="Speaker, Computer"><small>Choose any name and optional alternate spellings. Matching uses whole words.</small></label>
+        <label>Whisper model file<div class="copy-row"><input id="whisper_model" placeholder="Path to ggml-base.en.bin" spellcheck="false"><button id="download-model" class="secondary">Download base.en</button></div><small>English model, 148 MB. Download is verified before use.</small></label>
+        <label>Speaking voice<select id="voice_id"><option value="">Windows default voice</option></select><small>Uses installed Windows voices, with no cloud TTS account.</small></label>
+      </div></div>
+      <div class="card"><h2>Listening adjustments</h2><p>Start with the defaults. Use each speaker’s microphone meter to judge room noise.</p><div class="fields two">
+        <label>Speech threshold<input id="speech_threshold" type="number" min="0.001" max="0.3" step="0.001"><small>Lower hears quieter speech; higher ignores more noise.</small></label>
+        <label>End-of-phrase silence (ms)<input id="silence_ms" type="number" min="300" max="3000" step="50"></label>
+        <label>Longest phrase (seconds)<input id="max_utterance_seconds" type="number" min="5" max="60"></label>
+        <label>Recognition CPU threads<input id="whisper_threads" type="number" min="1" max="16"></label>
+      </div><div class="note">Microphone audio and transcripts are held in memory, then discarded. Constant background speech uses more CPU. A single room has one request in flight at a time.</div></div>
+    </section>
+    <section id="page-guide" class="page" hidden>
+      <div class="card"><h2>Connect your app</h2><p>Every spoken request carries a unique request ID and the speaker’s permanent ID, name, and tags.</p><ol class="steps"><li>The hub POSTs a prompt to your destination URL.</li><li>Your app returns <code>202 Accepted</code> and works on the reply.</li><li>Your app POSTs the text below to the callback URL with the app bearer token.</li><li>The hub speaks it on the matching speaker. Repeating the same callback is safe for 10 minutes.</li></ol><pre id="response-example"></pre><p>For an immediate reply, return <code>{"text":"Your answer"}</code> directly from the prompt endpoint.</p></div>
+      <div class="card"><h2>Speak to a room or a group</h2><p>POST to <code>/v1/speak</code> with the app bearer token. Select IDs, tags, or both. Every selected speaker must be online and available.</p><pre id="announcement-example"></pre><p>GET <code>/v1/speakers</code> returns names, tags, connection status, and microphone levels. Reuse a request ID only when retrying the same text and targets.</p><div class="note">The project’s <code>docs/API.md</code> covers payloads, authentication, WebSocket messages, limits, and error handling.</div></div>
+    </section>
+    <footer><span id="save-state">Settings loaded</span><button id="save" class="primary">Save settings</button></footer>
+  </main>
+  <dialog id="setup-dialog"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button></form><div class="eyebrow">SPEAKER SETUP</div><h2 id="setup-title">Connect your speaker</h2><p>Save the speaker first. After flashing, join its <strong>Speaker-setup-…</strong> Wi-Fi network using password <code>speaker-setup</code>, then open <code>http://192.168.4.1</code>.</p><div class="fields"><label>Hub URL<input id="setup-hub" readonly></label><label>Speaker ID<input id="setup-id" readonly></label><label>Speaker token<div class="copy-row"><input id="setup-token" type="password" readonly><button id="copy-speaker-token" class="secondary">Copy</button></div></label></div><details><summary>Provision over USB instead</summary><p>Fill these locally and copy the JSON into a private file for <code>scripts/provision.ps1</code>. Wi-Fi credentials are cleared when this dialog closes.</p><div class="fields"><label>Wi-Fi network<input id="wifi-ssid" autocomplete="off"></label><label>Wi-Fi password<input id="wifi-password" type="password" autocomplete="off"></label><button id="copy-provision" class="secondary">Copy provisioning JSON</button></div></details></dialog>
+</body></html>
