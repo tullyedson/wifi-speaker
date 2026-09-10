@@ -69,6 +69,8 @@ Wait for the device to appear online. Select **Test voice**, then say a phrase c
 
 Each speaker has saved microphone gain and playback volume. Increase gain gradually and avoid a continuously red mic meter. Gain affects recognition audio after raw phrase segmentation. Lower the global speech threshold if quiet speech does not start a phrase; raise it if room noise keeps starting phrases. Higher gain does not itself lower the raw speech threshold.
 
+When different boards need different input calibration, the speaker's setup page and USB provisioning JSON also accept `mic_gain` from 0.25 to 8 (default 1). This firmware gain changes raw microphone PCM before the hub detects phrases. If one board's background noise continuously exceeds a threshold that suits your other speakers, lower that board's firmware gain. You can raise its desktop microphone gain to preserve recognition volume, for example firmware 0.5 with desktop 2. Save these values in your own private provisioning/settings files. Verify normal phrase endings and microphone pickup afterward; long recordings that repeatedly reach the maximum phrase duration usually indicate the threshold is below the room's noise level.
+
 The buttons mute/unmute, adjust session volume and reopen setup. Reconnection restores the desktop's saved volume. LED states:
 
 | Color | Meaning |
