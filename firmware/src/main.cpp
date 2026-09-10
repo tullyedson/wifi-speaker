@@ -16,6 +16,7 @@
 #include "board_controls.h"
 #include "board_display.h"
 #include "device_config.h"
+#include "status_colors.h"
 
 namespace {
 using device_config::Config;
@@ -458,10 +459,11 @@ void loop() {
         }
         PlaybackEvent event; while (results && xQueueReceive(results, &event, 0) == pdTRUE) { if (connected) send_event(event); }
     }
-    uint32_t color = !audio_ok ? led.Color(180, 0, 0) : setup_mode ? led.Color(40, 80, 180) : muted || hub_paused ? led.Color(150, 45, 0) : playing ? led.Color(90, 20, 130) : !ready ? led.Color(130, 10, 10) : state_name == "waiting" || state_name == "transcribing" || state_name == "synthesizing" ? led.Color(90, 80, 0) : led.Color(0, 70, 25);
+    const String display_state = !audio_ok ? "Audio error" : setup_mode ? "Wi-Fi setup" : alarm_active ? "Alarm" : muted ? "Muted" : hub_paused ? "Paused" : playing ? "Speaking" : !ready ? "Connecting" : state_name == "waiting" ? "Thinking" : state_name == "transcribing" ? "Recognizing" : state_name == "synthesizing" ? "Preparing" : "Listening";
+    uint32_t color = status_colors::rgb888(display_state);
     float intensity = 0.2f;
     if (led_until && static_cast<int32_t>(millis() - led_until) >= 0) { led_effect = "status"; led_until = 0; }
-    if (alarm_active) color = millis() % 600 < 300 ? led.Color(255, 90, 10) : 0;
+    if (alarm_active) color = millis() % 600 < 300 ? status_colors::rgb888("Alarm") : 0;
     else if (led_effect != "status" && audio_ok && !setup_mode && !muted && !hub_paused) {
         color = led_color; intensity = led_brightness / 100.0f;
         if (led_effect == "breathe") intensity *= 0.2f + 0.8f * (1 + std::sin(millis() / 700.0)) / 2;
@@ -470,7 +472,6 @@ void loop() {
     color = led.Color(((color >> 16) & 255) * intensity, ((color >> 8) & 255) * intensity, (color & 255) * intensity);
     static uint32_t previous_color = 0xFFFFFFFF;
     if (color != previous_color) { led.fill(color); led.show(); previous_color = color; }
-    const String display_state = !audio_ok ? "Audio error" : setup_mode ? "Wi-Fi setup" : alarm_active ? "Alarm" : muted ? "Muted" : hub_paused ? "Paused" : playing ? "Speaking" : !ready ? "Connecting" : state_name == "waiting" ? "Thinking" : state_name == "transcribing" ? "Recognizing" : state_name == "synthesizing" ? "Preparing" : "Listening";
     board_display::update(display_state, volume.load(), microphone_gain.load(), muted || playing || hub_paused ? 0 : microphone_level.load(), setup_mode ? "192.168.4.1" : WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : "Wi-Fi offline");
     delay(1);
 }

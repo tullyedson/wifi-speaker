@@ -75,12 +75,15 @@ Muse/Waveshare buttons mute, adjust volume and reopen setup. Round BOOT cycles s
 
 | Color | Meaning |
 | --- | --- |
-| Green | Listening |
-| Yellow | Processing |
-| Purple | Playback |
+| Mint | Listening |
+| Sky blue | Recognizing speech |
+| Violet | Waiting for the AI response |
+| Gold | Preparing speech audio |
+| Green | Playback |
 | Amber | Muted or paused |
-| Blue | Setup mode |
-| Red | Disconnected or audio initialization failure |
+| Slate blue | Connecting or setup mode |
+| Coral red | Audio initialization failure |
+| Blinking coral red | Alarm |
 
 The SpotPear LCD uses a black background, adjustable backlight and always-on eyes by default. BOOT switches to a status page with mute, volume and gain controls. The [device API](device-api.md) changes expressions, screen state, brightness and optional timeout. First touch on a dark display only wakes it. Microphone capture continues while the display is dark. The BOOT button works without touch support.
 

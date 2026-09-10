@@ -85,6 +85,10 @@ Supported on the round SpotPear target. Headless boards return 409.
 
 All fields are optional, but send at least one. `screen` is `eyes` or `status`; `awake` and `blink` are booleans. Supported expressions: `neutral`, `happy`, `curious`, `sleepy`, `excited`, `love`, `sad`, `surprised`, `thinking`. Expressions are drawn and animated locally, so the caller need not stream animation frames.
 
+The eyes screen has no text. Eye color follows the device's current audio phase, independently of the selected expression: mint for listening, sky blue for recognition, violet while waiting for the AI, gold for speech preparation, green for playback, amber for mute/pause, coral red for alarm/audio error and slate blue for connection/setup. The audio hub's existing state messages drive these changes; expression commands do not override the phase color. Text labels remain on the status screen.
+
+Physical RGB LEDs use the same palette in their normal `status` effect on all boards. Alarms blink coral red. Explicit cosmetic LED effects remain independent of eye color, with the operational overrides described below.
+
 Gaze coordinates are finite numbers from -1 to 1, with positive x looking right and positive y looking down. Supplying either coordinate fixes the gaze until the expression expires or another expression command releases it. Otherwise the eyes look around on their own. Natural blinking continues; `blink:true` also requests an immediate blink. `duration_ms` ranges from 0 to 600,000, with 0 holding the expression until replaced. Expiry returns to neutral wandering eyes. `duration_ms` applies to the expression/gaze, not the screen's awake state.
 
 `{"awake":false}` turns off the backlight without stopping Wi-Fi or microphone capture. This manual sleep lasts until a touch, physical button, explicit wake command or alarm. An automatic idle timeout can also darken the display; reply processing wakes it unless it was manually put to sleep. This is display sleep, not ESP32 deep sleep. A device switched physically off cannot listen or receive a wake request.

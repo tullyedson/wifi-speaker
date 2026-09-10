@@ -1,4 +1,5 @@
 #include "board_display.h"
+#include "status_colors.h"
 #include <algorithm>
 #include <cmath>
 
@@ -17,7 +18,7 @@ bool valid_expression(const String& value) {
 namespace board_display {
 namespace {
 constexpr uint8_t touch_address = 0x15;
-constexpr uint16_t background = 0x0000, foreground = 0xDF7C, accent = 0x6F9B, blush = 0xFAF3;
+constexpr uint16_t background = 0x0000, foreground = 0xDF7C, accent = 0x6F9B;
 constexpr int backlight_channel = 6;
 // The SPI-pointer overload takes DC before CS, unlike the default-SPI overload.
 Adafruit_GC9A01A display(&SPI, 47, 5, 38);
@@ -52,24 +53,24 @@ void heart(int x, int y, uint16_t color) {
     face.fillCircle(x - 10, y - 5, 13, color); face.fillCircle(x + 10, y - 5, 13, color);
     face.fillTriangle(x - 22, y, x + 22, y, x, y + 27, color);
 }
-void draw_eye(int cx, int cy, bool right, float openness, const String& expression) {
+void draw_eye(int cx, int cy, bool right, float openness, const String& expression, uint16_t color) {
     const bool sleepy = expression == "sleepy" || expression == "thinking";
     int height = sleepy ? 34 : expression == "surprised" ? 84 : 72;
     if (expression == "curious" && right) height = 85;
     height = std::max(4, static_cast<int>(height * openness));
-    if (height < 12) { face.fillRoundRect(cx - 30, cy - 2, 60, 5, 2, accent); return; }
-    if (expression == "love") { heart(cx, cy - 5, blush); return; }
+    if (height < 12) { face.fillRoundRect(cx - 30, cy - 2, 60, 5, 2, color); return; }
+    if (expression == "love") { heart(cx, cy - 5, color); return; }
     if (expression == "happy" || expression == "excited") {
-        face.fillRoundRect(cx - 31, cy - height / 2, 62, height, 25, accent);
+        face.fillRoundRect(cx - 31, cy - height / 2, 62, height, 25, color);
         face.fillRoundRect(cx - 34, cy - height / 2 + 19, 68, height + 10, 29, background);
         if (expression == "excited") {
             face.fillCircle(cx + (right ? 27 : -27), cy - 39, 3, foreground);
-            face.drawFastHLine(cx + (right ? 29 : -39), cy - 48, 9, accent);
+            face.drawFastHLine(cx + (right ? 29 : -39), cy - 48, 9, color);
         }
         return;
     }
     const int top = cy - height / 2;
-    face.fillRoundRect(cx - 32, top, 64, height, std::min(27, height / 2), accent);
+    face.fillRoundRect(cx - 32, top, 64, height, std::min(27, height / 2), color);
     const int pupil_y = cy + static_cast<int>(look_y * 9), pupil_x = cx + static_cast<int>(look_x * 12);
     const int pupil_radius = expression == "surprised" ? 12 : 18;
     if (height > 25) {
@@ -81,8 +82,14 @@ void draw_eye(int cx, int cy, bool right, float openness, const String& expressi
     }
     if (expression == "sad") face.fillTriangle(cx - 34, top - 1, cx + 34, top - 1, cx + (right ? 34 : -34), top + 23, background);
 }
-void draw_face(uint32_t now) {
-    if (!face.getBuffer()) { text("Face unavailable", 115, 1); return; }
+void draw_face(uint32_t now, uint16_t color) {
+    if (!face.getBuffer()) {
+        for (int x : {72, 168}) {
+            display.drawLine(x - 15, 99, x + 15, 129, 0xFA8A);
+            display.drawLine(x - 15, 129, x + 15, 99, 0xFA8A);
+        }
+        return;
+    }
     if (!fixed_gaze && static_cast<int32_t>(now - next_look) >= 0) {
         target_x = random(-80, 81) / 100.0f; target_y = random(-45, 46) / 100.0f;
         next_look = now + random(1600, 4100);
@@ -97,11 +104,11 @@ void draw_face(uint32_t now) {
     }
     face.fillScreen(background);
     const int bob = static_cast<int>(std::sin(now / 1100.0) * 2);
-    draw_eye(72, 77 + bob, false, openness, mood); draw_eye(168, 77 + bob, true, openness, mood);
+    draw_eye(72, 77 + bob, false, openness, mood, color); draw_eye(168, 77 + bob, true, openness, mood, color);
     face.fillRoundRect(35, 121 + bob, 26, 9, 4, 0x91CA); face.fillRoundRect(179, 121 + bob, 26, 9, 4, 0x91CA);
-    if (mood == "surprised") { face.drawCircle(120, 137, 7, accent); face.drawCircle(120, 137, 6, accent); }
-    else if (mood == "sad") { face.drawLine(113, 141, 120, 136, accent); face.drawLine(120, 136, 127, 141, accent); }
-    else { face.drawLine(111, 132, 115, 136, accent); face.drawFastHLine(115, 136, 10, accent); face.drawLine(125, 136, 129, 132, accent); }
+    if (mood == "surprised") { face.drawCircle(120, 137, 7, color); face.drawCircle(120, 137, 6, color); }
+    else if (mood == "sad") { face.drawLine(113, 141, 120, 136, color); face.drawLine(120, 136, 127, 141, color); }
+    else { face.drawLine(111, 132, 115, 136, color); face.drawFastHLine(115, 136, 10, color); face.drawLine(125, 136, 129, 132, color); }
     display.drawRGBBitmap(0, 37, face.getBuffer(), 240, 166);
 }
 }
@@ -167,9 +174,8 @@ void update(const String& state, uint8_t volume, float mic_gain, uint16_t level,
     if (dirty || state != old_state || address != old_address || volume != old_volume || mic_gain != old_gain) {
         old_state = state; old_address = address; old_volume = volume; old_gain = mic_gain; old_level = -1; dirty = false;
         display.fillScreen(background);
-        const uint16_t color = state == "Muted" || state == "Audio error" || state == "Alarm" ? blush : accent;
-        if (eyes) text(state, 218, 1, color);
-        else {
+        const uint16_t color = status_colors::rgb565(state);
+        if (!eyes) {
             display.drawCircle(120, 120, 116, 0x2147); text("SMART SPEAKER", 26, 1, accent); text(state, 48, 2, color);
             display.drawRoundRect(49, 77, 142, 10, 4, 0x4208); display.fillRoundRect(62, 94, 116, 23, 8, 0x2147);
             text(state == "Muted" ? "UNMUTE MIC" : "MUTE MIC", 102, 1);
@@ -178,7 +184,7 @@ void update(const String& state, uint8_t volume, float mic_gain, uint16_t level,
             text(address, 223, 1);
         }
     }
-    if (eyes) draw_face(now);
+    if (eyes) draw_face(now, status_colors::rgb565(state));
     else {
         const int width = std::min(136, static_cast<int>(level) * 136 / 100);
         if (width != old_level) { display.fillRect(52, 80, 136, 4, background); if (width) display.fillRect(52, 80, width, 4, accent); old_level = width; }

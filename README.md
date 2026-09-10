@@ -139,6 +139,23 @@ This builds the ESP32-S3 image and saves all 16 MB of factory flash before insta
 
 The screen has a black background and adjustable LED backlight, and stays on by default. The eyes look around, blink, and react happily to a tap. Set a timeout or switch the backlight off through the device API; microphone listening continues. Tap once to wake it before using touch controls. Reply processing/playback can wake an automatically timed-out display; an explicit API sleep remains asleep until a touch, button, alarm or remote wake.
 
+The face has no text. Eye color shows the current phase, including when your AI selects an expression:
+
+| Eye color | Phase |
+| --- | --- |
+| Mint | Listening for a request |
+| Sky blue | Recognizing speech |
+| Violet | Waiting for the AI response |
+| Gold | Preparing speech audio |
+| Green | Speaking |
+| Amber | Microphone muted or hub paused |
+| Coral red | Alarm or audio error |
+| Slate blue | Connecting or Wi-Fi setup |
+
+Use the controls screen for text labels, the microphone meter, volume and gain.
+
+Physical RGB LEDs use the same phase palette on every board, including the screenless Waveshare. Alarms blink coral red. An API-requested cosmetic LED effect temporarily replaces normal phase colors; mute, pause, setup, audio error and alarm indicators take priority.
+
 For later updates, use `-Action Update -Board spotpear_ball_v2 -Port COM7`. Updates check the installed partition table before writing and preserve provisioning. Firmware images are named `spotpear-ball-v2-factory.bin` and `spotpear-ball-v2-app.bin` under `artifacts/firmware/`.
 
 ## Install a Waveshare audio board
