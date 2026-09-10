@@ -83,7 +83,7 @@ PlatformIO target: `waveshare_s3_audio`. ESP32-S3R8, 16 MB flash, 8 MB PSRAM. Th
 | Amplifier enable | TCA9555 at 0x20, expander pin 8, active high |
 | Keys 1 / 2 / 3 | Expander pins 9 / 10 / 11, active low |
 | BOOT | GPIO 0 |
-| Seven WS2812 RGB LEDs | GPIO 38 |
+| Seven WS2812 RGB LEDs | GPIO 38, RGB byte order |
 | RTC | PCF85063 at 0x51, not used by this firmware |
 
 The driver initializes ES8311 output and two ES7210 microphones at 16 kHz with 16-bit stereo I2S. It selects one input slot for the mono stream and duplicates mono output for the DAC. Microphone analog gain is 24 dB, plus configurable firmware PCM gain. ES7210 mode register 0x08 retains its 0x10 two-channel field; clearing that field produces periodically missing samples. Every codec write is checked. The amplifier driver only changes its own expander output and key directions, leaving camera/display expansion pins alone.

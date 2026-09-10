@@ -31,7 +31,8 @@ Preferences preferences;
 WebSocketsClient socket;
 WebServer portal(80);
 DNSServer dns;
-Adafruit_NeoPixel led(board_config::led_count, board_config::led, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel led(board_config::led_count, board_config::led,
+    (board_config::led_rgb_order ? NEO_RGB : NEO_GRB) + NEO_KHZ800);
 std::atomic<bool> connected{false}, ready{false}, muted{false}, hub_paused{false}, playing{false};
 std::atomic<uint32_t> epoch{0};
 std::atomic<uint8_t> volume{35};
