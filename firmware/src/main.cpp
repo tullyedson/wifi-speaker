@@ -312,7 +312,11 @@ void alarm_api() {
     AlarmReceipt& receipt = alarm_history[alarm_history_next];
     receipt.id = id; receipt.duration_ms = duration; receipt.at = millis(); receipt.pattern = selected; receipt.volume = loudness;
     alarm_history_next = (alarm_history_next + 1) % 8;
-    ++epoch; if (jobs) xQueueReset(jobs); if (frames) xQueueReset(frames); report_mute();
+    ++epoch; if (jobs) xQueueReset(jobs); if (frames) xQueueReset(frames);
+    // Protocol 1 has no client-side speech cancellation event. Reconnecting
+    // retires the hub's old request and audio generation without a false receipt.
+    if (results) xQueueReset(results);
+    socket.disconnect(); connected = false; ready = false;
     board_display::wake(); board_display::expression("surprised", duration + 400, false, 0, 0);
     JsonDocument response; response["status"] = "accepted"; response["id"] = id; json_response(202, response);
 }
