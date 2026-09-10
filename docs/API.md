@@ -196,3 +196,7 @@ Authenticated speaker status includes `input_level` (raw RMS), `level` (gain-adj
 Local transcription no longer discards newly arriving microphone frames. One owned worker per speaker drains a queue of at most two completed utterances; if it fills, the oldest waiting phrase is discarded. A separate in-progress phrase remains bounded by the configured maximum phrase length. A listening generation and cancellation token prevent queued or in-progress speech from being reused after mute, capture, playback or reconnection. Audio during a pending reply and playback is still ignored. Queue contents stay in memory.
 
 In OpenAI-compatible mode, the system message now appends the PC's current local RFC3339 date/time and UTC offset at dispatch. The webhook request contract stays unchanged.
+
+## Direct device controls, firmware 0.2.0
+
+The device now exposes its own authenticated [display, RGB, alarm and persistent configuration API](device-api.md) on port 80. It is independent of these hub routes. The audio WebSocket handshake remains v1 without additional required fields. Once device volume is set through touch, buttons or its API, the saved device value takes precedence over the hub ready-message default; volume telemetry reports the actual value. Device microphone gain changes raw PCM before this hub's phrase detection.

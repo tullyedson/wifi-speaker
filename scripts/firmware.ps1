@@ -1,7 +1,7 @@
 param(
     [ValidateSet('Build','Backup','Flash','Update')][string]$Action = 'Build',
     [string]$Port = '',
-    [ValidateSet('muse_luxe','spotpear_ball_v2')][string]$Board = 'muse_luxe',
+    [ValidateSet('muse_luxe','spotpear_ball_v2','waveshare_s3_audio')][string]$Board = 'muse_luxe',
     [string]$ToolsDirectory = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -16,6 +16,7 @@ $speakerOutput = Join-Path $speakerRoot 'artifacts\firmware'
 $profiles = @{
     muse_luxe = @{ Chip='esp32'; Name='muse-luxe'; FlashSize='4MB'; Bytes=0x400000; BootOffset='0x1000'; AppSize=0x1D0000; Reset='hard-reset' }
     spotpear_ball_v2 = @{ Chip='esp32s3'; Name='spotpear-ball-v2'; FlashSize='16MB'; Bytes=0x1000000; BootOffset='0x0'; AppSize=0x300000; Reset='watchdog-reset' }
+    waveshare_s3_audio = @{ Chip='esp32s3'; Name='waveshare-s3-audio'; FlashSize='16MB'; Bytes=0x1000000; BootOffset='0x0'; AppSize=0x300000; Reset='watchdog-reset' }
 }
 $profile = $profiles[$Board]
 if ($Action -in @('Build','Flash','Update')) {

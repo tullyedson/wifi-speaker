@@ -11,12 +11,13 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 .\scripts\build.ps1 -Release
 .\scripts\firmware.ps1 -Action Build -Board muse_luxe
 .\scripts\firmware.ps1 -Action Build -Board spotpear_ball_v2
+.\scripts\firmware.ps1 -Action Build -Board waveshare_s3_audio
 python .\scripts\check-public.py
 ```
 
 Run Clippy in the same PowerShell session after the build helper so CMake and libclang are available. Tests cover phrase buffering, wake-name boundaries and aliases, malformed audio, mute/pause/disconnect, bounded recognition queues, speaker isolation, correlated replies, duplicate callbacks, announcements, stale generations, diagnostics, per-speaker gain/volume, clock context, generic OpenAI-compatible requests and configurable caller headers.
 
-The Windows CI workflow runs the source privacy guard, Rust tests and Clippy, a release build, helper syntax checks, packaging and compilation of both firmware targets. Native UI and speech checks below require a Windows desktop with installed voices and are run separately. Firmware compilation does not connect to or write a USB device.
+The Windows CI workflow runs the source privacy guard, Rust tests and Clippy, a release build, helper syntax checks, packaging and compilation of all three firmware targets. Native UI and speech checks below require a Windows desktop with installed voices and are run separately. Firmware compilation does not connect to or write a USB device.
 
 ## Native settings interface
 
@@ -52,8 +53,12 @@ This explicitly calls that endpoint using your local settings and a temporary si
 
 For a connected physical device, use **Test voice**, then speak a phrase containing your wake name. Check the complete request and playback cycle and listen to the result. Test volume, microphone distance, mute, Wi-Fi recovery and power recovery in the intended room. Optional diagnostics are described in the [API guide](API.md#explicit-microphone-sample).
 
-For SpotPear, also check the black display background, readable state text, touch volume/mute controls, and the 15-second backlight timeout. A first tap on a sleeping screen should wake it without changing mute or volume. Confirm that audio capture continues while the backlight is off. USB provisioning must acknowledge a complete message sent in one write and reconnect with the saved registration. An application update must preserve those settings and reject a different partition layout before writing.
+For SpotPear, also check the black display background, readable state text, BOOT screen cycling, touch volume/gain/mute controls, animated expressions and the configurable backlight timeout. A first tap on a sleeping screen should wake it without changing mute or volume. Confirm that audio capture continues while the backlight is off. USB provisioning must acknowledge a complete message sent in one write and reconnect with the saved registration. An application update must preserve those settings and reject a different partition layout before writing.
 
 ## Public-source checks
 
 `scripts/check-public.py` inspects tracked source for local network addresses, absolute workstation paths, credential-like content and forbidden runtime files. Third-party license notices retain their upstream attribution. A local pre-publication audit must also check Git history and actual private values without adding those values to a repository denylist. Passing a pattern scanner is one part of review, not proof that arbitrary new content is safe to publish.
+
+## Direct device API
+
+Use the [device reference client and contract](device-api.md) against your own provisioned hardware. Verify authentication and field validation, identity, per-device gain/volume, RGB effect expiry, bounded alarm playback, duplicate/conflicting IDs and exact-ID cancellation. Restart after saving controls and verify they remain. Switch the audio destination to an isolated test receiver, verify a local alarm without the normal hub, then restore the original route and confirm reconnection. Use quiet, short tones for verification.

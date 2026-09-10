@@ -28,7 +28,7 @@ It finds the portable app relative to the repository. If you moved it, pass `-Ex
 
 ## USB and firmware
 
-The original Muse Luxe ES8388 and SpotPear Ball V2 / 1.28-inch BOX ES8311 boards are supported. See [hardware.md](hardware.md) before flashing. Use a USB data cable, turn on the device and locate its COM port in Device Manager. Muse Luxe uses a Silicon Labs CP210x USB bridge; SpotPear uses the ESP32-S3 native USB JTAG/serial interface. Close any serial terminal using that port.
+The original Muse Luxe ES8388, SpotPear Ball V2 / 1.28-inch BOX ES8311 and Waveshare ESP32-S3-AUDIO-Board ES8311/ES7210 boards are supported. See [hardware.md](hardware.md) before flashing. Use a USB data cable, turn on the device and locate its COM port in Device Manager. Muse Luxe uses a Silicon Labs CP210x USB bridge; SpotPear uses the ESP32-S3 native USB JTAG/serial interface. Close any serial terminal using that port.
 
 From the repository directory, replacing COM7 with the actual port:
 
@@ -37,7 +37,7 @@ From the repository directory, replacing COM7 with the actual port:
 .\scripts\firmware.ps1 -Action Flash -Port COM7
 ```
 
-These commands default to Muse Luxe. Add `-Board spotpear_ball_v2` to every firmware command for the SpotPear device. **Backup** reads all flash: 4 MB for Muse Luxe or 16 MB for SpotPear. **Flash** builds the selected factory image, creates another complete backup, writes the bootloader, partitions and app at offset 0, and independently verifies the written image. It replaces existing firmware and provisioning. Never interrupt power during writing.
+These commands default to Muse Luxe. Add `-Board spotpear_ball_v2` for SpotPear or `-Board waveshare_s3_audio` for the Waveshare audio board to every firmware command. **Backup** reads all flash: 4 MB for Muse Luxe or 16 MB for either ESP32-S3 target. **Flash** builds the selected factory image, creates another complete backup, writes the bootloader, partitions and app at offset 0, and independently verifies the written image. It replaces existing firmware and provisioning. Never interrupt power during writing.
 
 For later updates using this project's partition layout:
 
@@ -71,7 +71,7 @@ Each speaker has saved microphone gain and playback volume. Increase gain gradua
 
 When different boards need different input calibration, the speaker's setup page and USB provisioning JSON also accept `mic_gain` from 0.25 to 8 (default 1). This firmware gain changes raw microphone PCM before the hub detects phrases. If one board's background noise continuously exceeds a threshold that suits your other speakers, lower that board's firmware gain. You can raise its desktop microphone gain to preserve recognition volume, for example firmware 0.5 with desktop 2. Save these values in your own private provisioning/settings files. Verify normal phrase endings and microphone pickup afterward; long recordings that repeatedly reach the maximum phrase duration usually indicate the threshold is below the room's noise level.
 
-The buttons mute/unmute, adjust session volume and reopen setup. Reconnection restores the desktop's saved volume. LED states:
+Muse/Waveshare buttons mute, adjust volume and reopen setup. Round BOOT cycles screens; on-screen controls adjust gain, volume and mute. Physical/touch adjustments are saved after two seconds. Device-owned volume takes precedence over the reference desktop's initial default on subsequent connections. LED states:
 
 | Color | Meaning |
 | --- | --- |
@@ -82,6 +82,8 @@ The buttons mute/unmute, adjust session volume and reopen setup. Reconnection re
 | Blue | Setup mode |
 | Red | Disconnected or audio initialization failure |
 
-The SpotPear screen uses a black background and a dim backlight. After 15 seconds idle, the backlight turns off while the microphone keeps listening. Tap once to wake it; subsequent center taps mute/unmute, and minus/plus taps change volume. Reply processing/playback also wakes the screen. The BOOT button works without touch support.
+The SpotPear LCD uses a black background, adjustable backlight and always-on eyes by default. BOOT switches to a status page with mute, volume and gain controls. The [device API](device-api.md) changes expressions, screen state, brightness and optional timeout. First touch on a dark display only wakes it. Microphone capture continues while the display is dark. The BOOT button works without touch support.
 
 If the mic is silent, check USB startup diagnostics (`audio=ready`), device mute and channel selection. If you see phrases but no response, check wake names, the endpoint URL, model ID, bearer token and the device's error status. Long transcription times depend on model size, CPU and concurrent room activity. Use [explicit microphone diagnostics](API.md#explicit-microphone-sample) when needed. Diagnostics can contain private speech; keep their output local.
+
+If speech is transcribed but no request is sent, inspect one explicit recognition observation. A short name can be rendered with a different spelling. Add an observed phonetic spelling to your local wake-name list, then repeat the live test. Keep personalized wake names in local settings. Avoid adding ordinary unrelated words as aliases.
