@@ -9,13 +9,14 @@ Run commands from the repository root after [bootstrapping the build helpers](..
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 .\scripts\build.ps1 -Release
-.\scripts\firmware.ps1 -Action Build
+.\scripts\firmware.ps1 -Action Build -Board muse_luxe
+.\scripts\firmware.ps1 -Action Build -Board spotpear_ball_v2
 python .\scripts\check-public.py
 ```
 
 Run Clippy in the same PowerShell session after the build helper so CMake and libclang are available. Tests cover phrase buffering, wake-name boundaries and aliases, malformed audio, mute/pause/disconnect, bounded recognition queues, speaker isolation, correlated replies, duplicate callbacks, announcements, stale generations, diagnostics, per-speaker gain/volume, clock context, generic OpenAI-compatible requests and configurable caller headers.
 
-The Windows CI workflow runs the source privacy guard, Rust tests and Clippy, a release build, helper syntax checks, packaging and firmware compilation. Native UI and speech checks below require a Windows desktop with installed voices and are run separately. Firmware compilation does not connect to or write a USB device.
+The Windows CI workflow runs the source privacy guard, Rust tests and Clippy, a release build, helper syntax checks, packaging and compilation of both firmware targets. Native UI and speech checks below require a Windows desktop with installed voices and are run separately. Firmware compilation does not connect to or write a USB device.
 
 ## Native settings interface
 
@@ -50,6 +51,8 @@ After configuring your own OpenAI-compatible endpoint in Settings:
 This explicitly calls that endpoint using your local settings and a temporary simulated speaker. Provider usage may apply. It removes the temporary configuration containing the destination credential on completion. The test uses your configured wake name and validates a spoken test reply. A synthetic loopback success does not establish microphone range or physical sound quality.
 
 For a connected physical device, use **Test voice**, then speak a phrase containing your wake name. Check the complete request and playback cycle and listen to the result. Test volume, microphone distance, mute, Wi-Fi recovery and power recovery in the intended room. Optional diagnostics are described in the [API guide](API.md#explicit-microphone-sample).
+
+For SpotPear, also check the black display background, readable state text, touch volume/mute controls, and the 15-second backlight timeout. A first tap on a sleeping screen should wake it without changing mute or volume. Confirm that audio capture continues while the backlight is off. USB provisioning must acknowledge a complete message sent in one write and reconnect with the saved registration. An application update must preserve those settings and reject a different partition layout before writing.
 
 ## Public-source checks
 

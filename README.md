@@ -6,7 +6,7 @@ Choose a wake name, connect multiple speakers, give each a name and room tags, a
 
 This is a source release. Build the portable desktop app and firmware as described below. No accounts, LLM service, deployment addresses or credentials are included.
 
-[Requirements](#requirements) · [Build](#build-on-windows) · [Hub settings](#set-up-the-hub) · [Speaker setup](#install-a-muse-luxe) · [First conversation](#check-your-first-conversation) · [Application API](#connect-your-application) · [Troubleshooting](#troubleshooting) · [Contributing](#development-and-contributions)
+[Requirements](#requirements) · [Build](#build-on-windows) · [Hub settings](#set-up-the-hub) · [Muse setup](#install-a-muse-luxe) · [SpotPear setup](#install-a-spotpear-ball-v2) · [First conversation](#check-your-first-conversation) · [Application API](#connect-your-application) · [Troubleshooting](#troubleshooting) · [Contributing](#development-and-contributions)
 
 ## How it works
 
@@ -26,12 +26,12 @@ The hub buffers and transcribes detected phrases before checking for a whole-wor
 | Component | What you need |
 | --- | --- |
 | Desktop | Windows 10/11 x64, Microsoft WebView2, and an installed Windows speech voice |
-| Speaker | Original **RASPIAUDIO Muse Luxe**, with ESP32, ES8388 codec and 4 MB flash |
+| Speaker | Original **RASPIAUDIO Muse Luxe** (ESP32 / ES8388 / 4 MB), or **SpotPear Ball V2 / 1.28-inch BOX** (ESP32-S3 / ES8311 / 16 MB, optional touch and battery) |
 | Network | 2.4 GHz Wi-Fi for the speaker, with network access to the Windows PC; the PC may use Ethernet |
 | Reply backend | An OpenAI-compatible chat-completions endpoint and model, or an app implementing the [webhook API](docs/API.md) |
 | Initial installation | USB data cable and the device's COM port in Windows Device Manager |
 
-Other ESP32 speaker boards need a firmware port for their codec, pins and flash layout. Do not flash this Muse Luxe image onto a different board. See [hardware support and porting](docs/hardware.md).
+Choose the firmware target that matches the device. Other ESP32 boards, including the older SpotPear Ball V1, need a different driver. See [hardware support and porting](docs/hardware.md).
 
 Local speech recognition uses the English Whisper `base.en` model by default. Your LLM is a separate service that you supply; it may run locally or remotely. Local STT and TTS do not require a cloud speech account. Initial dependency/model downloads and any remote backend need internet access.
 
@@ -52,6 +52,9 @@ Install Git, Python 3.11 or newer, the Rust stable **MSVC** toolchain, and Visua
 
 # Build the Muse Luxe image without touching a connected device.
 .\scripts\firmware.ps1 -Action Build
+
+# For the SpotPear Ball V2, select its separate image instead.
+.\scripts\firmware.ps1 -Action Build -Board spotpear_ball_v2
 
 # Assemble the portable desktop folder.
 .\scripts\package.ps1
@@ -117,6 +120,22 @@ For later firmware updates **after installing this project's partition layout**,
 
 **Update** takes a full backup, writes only the application, verifies it and preserves Wi-Fi/device credentials. Use **Flash** for first installation. [Installation and troubleshooting](docs/installation.md) covers backups, restoration, USB setup and LED indicators.
 
+## Install a SpotPear Ball V2
+
+Select the newer **ESP32-S3-1.28inch-AI-legs / BOX** board with the ES8311 codec. Touch and battery are optional. The older, smaller Ball V1 uses different audio wiring. A sticker's firmware version alone does not identify the hardware.
+
+Replace COM7 with the device's actual USB JTAG/serial COM port:
+
+```powershell
+.\scripts\firmware.ps1 -Action Flash -Board spotpear_ball_v2 -Port COM7
+```
+
+This builds the ESP32-S3 image and saves all 16 MB of factory flash before installing. Complete the same Wi-Fi or USB provisioning steps as the Muse Luxe. The screen shows connection/processing state and a microphone meter. On the touch version, tap the center to mute/unmute and use the on-screen minus/plus buttons for volume. A short **BOOT** press also mutes; holding BOOT for five seconds opens setup. The meter shows device input on a more sensitive scale than the desktop's normalized level.
+
+The screen has a black background and dim backlight. It switches its backlight off after 15 seconds without interaction or a reply in progress; microphone listening continues. Tap once to wake it before using touch controls. Reply processing/playback and the BOOT button also wake it.
+
+For later updates, use `-Action Update -Board spotpear_ball_v2 -Port COM7`. Updates check the installed partition table before writing and preserve provisioning. Firmware images are named `spotpear-ball-v2-factory.bin` and `spotpear-ball-v2-app.bin` under `artifacts/firmware/`.
+
 ## Check your first conversation
 
 1. Wait for the speaker to show online/listening, then select **Test voice**. This checks TTS and playback without needing an LLM reply.
@@ -125,7 +144,7 @@ For later firmware updates **after installing this project's partition layout**,
 
 Each speaker card has **Microphone gain** (0.25x to 8x) and **Playback volume** (0 to 100%). Adjust gradually and save. Gain raises audio used for recognition after phrase detection; the global speech threshold controls whether quiet raw microphone audio starts a phrase. See [audio tuning](docs/installation.md#check-sound-and-listening).
 
-A short middle-button press mutes/unmutes the microphone. Plus/minus changes the device's current volume; reconnecting restores the saved desktop volume. Names are for display, permanent IDs route replies, and tags let an app address rooms or groups.
+A short press of the Muse middle button or SpotPear BOOT button mutes/unmutes the microphone. Physical or on-screen plus/minus controls change the device's current volume; reconnecting restores the saved desktop volume. Names are for display, permanent IDs route replies, and tags let an app address rooms or groups.
 
 ## Connect your application
 
@@ -161,8 +180,9 @@ Normal operation keeps audio and transcripts in memory. Only phrases matching a 
 
 | Symptom | Check first |
 | --- | --- |
-| No COM port | Speaker power, USB data cable, CP210x driver and another program holding the port |
-| No setup Wi-Fi | Hold the middle button for five seconds; the setup window expires after ten minutes |
+| No COM port | Speaker power, USB data cable, CP210x driver for Muse Luxe, and another program holding the port |
+| No setup Wi-Fi | Hold the Muse middle button or SpotPear BOOT button for five seconds; the setup window expires after ten minutes |
+| SpotPear screen is dark | Tap once to wake it; the backlight switches off after 15 seconds while listening continues |
 | Speaker stays offline | Saved device ID/token, reachable PC address, 2.4 GHz Wi-Fi, firewall and guest/IoT network isolation |
 | Meter moves but no reply | Configured wake name, speech model, raw speech threshold, prompt URL/model/token and the speaker's error status |
 | Quiet input or playback | That speaker's saved gain/volume, mute state and selected Windows voice |
@@ -181,7 +201,7 @@ Fork the project, make a focused branch and open a PR. The [contribution guide](
 | --- | --- |
 | `crates/hub` | Rust audio processing, speech, HTTP/WebSocket API and CLI |
 | `desktop`, `ui` | Tauri tray app and bundled settings interface |
-| `firmware` | Muse Luxe audio, Wi-Fi, provisioning and transport |
+| `firmware` | Muse Luxe and SpotPear audio, display, Wi-Fi, provisioning and transport |
 | `scripts` | Build, package, firmware, simulator and diagnostic helpers |
 | `docs` | Protocol, installation, hardware and third-party notices |
 

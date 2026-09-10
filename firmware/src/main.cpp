@@ -9,7 +9,10 @@
 #include <ArduinoJson.h>
 #include <Adafruit_NeoPixel.h>
 #include <atomic>
+#include <cmath>
 #include "board_audio.h"
+#include "board_config.h"
+#include "board_display.h"
 
 namespace {
 struct Config { String ssid, password, hub, id, token; uint8_t mic_channel = 0; float mic_gain = 1.0f; } config;
@@ -21,10 +24,11 @@ Preferences preferences;
 WebSocketsClient socket;
 WebServer portal(80);
 DNSServer dns;
-Adafruit_NeoPixel led(1, 22, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel led(1, board_config::led, NEO_GRB + NEO_KHZ800);
 std::atomic<bool> connected{false}, ready{false}, muted{false}, hub_paused{false}, playing{false};
 std::atomic<uint32_t> epoch{0};
 std::atomic<uint8_t> volume{35};
+std::atomic<uint16_t> microphone_level{0};
 String extra_headers, hub_host, socket_path, state_name = "offline";
 uint16_t hub_port = 0;
 bool setup_mode = false, audio_ok = false;
@@ -72,7 +76,7 @@ void report_volume() {
 }
 void hello() {
     JsonDocument doc; doc["type"] = "hello"; doc["protocol"] = 1; doc["speaker_id"] = config.id;
-    doc["firmware"] = "muse-luxe/0.1.1"; doc["sample_rate"] = board_audio::sample_rate;
+    doc["firmware"] = board_config::firmware; doc["sample_rate"] = board_audio::sample_rate;
     doc["channels"] = 1; doc["sample_format"] = "s16le";
     String text; serializeJson(doc, text); socket.sendTXT(text);
 }
@@ -155,6 +159,9 @@ void audio_task(void*) {
         } else {
             frame.epoch = epoch.load();
             frame.count = board_audio::capture(frame.samples, board_audio::frame_samples, config.mic_channel, config.mic_gain);
+            uint64_t squares = 0;
+            for (size_t i = 0; i < frame.count; ++i) { const int32_t sample = frame.samples[i]; squares += static_cast<uint64_t>(sample * sample); }
+            microphone_level = frame.count ? static_cast<uint16_t>(sqrt(static_cast<double>(squares) / frame.count) * 1000 / 32768) : 0;
             if (!frame.count) vTaskDelay(pdMS_TO_TICKS(10));
             if (frame.count && ready && !muted && !hub_paused) {
                 if (xQueueSend(frames, &frame, 0) != pdTRUE) { Frame discard; xQueueReceive(frames, &discard, 0); xQueueSend(frames, &frame, 0); }
@@ -163,7 +170,7 @@ void audio_task(void*) {
     }
 }
 
-const char setup_html[] PROGMEM = R"HTML(<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Speaker setup</title><style>body{font:17px system-ui;background:#111a23;color:#edf4f7;margin:30px auto;max-width:520px;padding:20px}label{display:block;margin-top:18px}input,select,button{box-sizing:border-box;width:100%;padding:12px;font:inherit;margin-top:6px;border-radius:7px;border:1px solid #516270;background:#1b2a36;color:white}button{background:#347b6f;cursor:pointer}small{color:#b1c2cb}</style></head><body><h1>Connect your speaker</h1><p>Use the speaker ID and token from the desktop app.</p><form method="post" action="/configure"><label>Wi-Fi name<input name="wifi_ssid" maxlength="32" required></label><label>Wi-Fi password<input name="wifi_password" type="password" maxlength="64"></label><label>Hub address<input name="hub_url" placeholder="http://192.0.2.10:48490" required></label><label>Speaker ID<input name="speaker_id" maxlength="64" required></label><label>Speaker token<input name="speaker_token" type="password" maxlength="256" required></label><label>Microphone channel<select name="mic_channel"><option value="0">Channel 0</option><option value="1">Channel 1</option></select></label><label>Microphone gain<input name="mic_gain" type="number" value="1" min="0.25" max="8" step="0.25"></label><button>Save and connect</button></form><p><small>Settings stay on this speaker. Setup closes after ten minutes. Hold the middle button for five seconds to reopen setup.</small></p></body></html>)HTML";
+const char setup_html[] PROGMEM = R"HTML(<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Speaker setup</title><style>body{font:17px system-ui;background:#111a23;color:#edf4f7;margin:30px auto;max-width:520px;padding:20px}label{display:block;margin-top:18px}input,select,button{box-sizing:border-box;width:100%;padding:12px;font:inherit;margin-top:6px;border-radius:7px;border:1px solid #516270;background:#1b2a36;color:white}button{background:#347b6f;cursor:pointer}small{color:#b1c2cb}</style></head><body><h1>Connect your speaker</h1><p>Use the speaker ID and token from the desktop app.</p><form method="post" action="/configure"><label>Wi-Fi name<input name="wifi_ssid" maxlength="32" required></label><label>Wi-Fi password<input name="wifi_password" type="password" maxlength="64"></label><label>Hub address<input name="hub_url" placeholder="http://192.0.2.10:48490" required></label><label>Speaker ID<input name="speaker_id" maxlength="64" required></label><label>Speaker token<input name="speaker_token" type="password" maxlength="256" required></label><label>Microphone channel<select name="mic_channel"><option value="0">Channel 0</option><option value="1">Channel 1</option></select></label><label>Microphone gain<input name="mic_gain" type="number" value="1" min="0.25" max="8" step="0.25"></label><button>Save and connect</button></form><p><small>Settings stay on this speaker. Setup closes after ten minutes. Hold the setup button (Muse: middle; SpotPear: BOOT) for five seconds to reopen setup.</small></p></body></html>)HTML";
 
 void start_setup() {
     if (setup_mode) return;
@@ -201,14 +208,21 @@ void check_serial() {
 }
 
 void setup() {
+#if defined(BOARD_SPOTPEAR_BALL_V2)
+    // Native USB arrives in bursts; accept the entire provisioning message.
+    Serial.setRxBufferSize(4096);
+#endif
     Serial.begin(115200); preferences.begin("smart-speaker", false);
-    pinMode(12, INPUT_PULLUP); pinMode(19, INPUT_PULLUP); pinMode(32, INPUT_PULLUP);
+    pinMode(board_config::button, INPUT_PULLUP);
+    if (board_config::volume_up >= 0) pinMode(board_config::volume_up, INPUT_PULLUP);
+    if (board_config::volume_down >= 0) pinMode(board_config::volume_down, INPUT_PULLUP);
+    board_display::begin();
     led.begin(); led.setBrightness(24); led.setPixelColor(0, led.Color(20, 30, 40)); led.show();
     frames = xQueueCreate(6, sizeof(Frame)); jobs = xQueueCreate(1, sizeof(PlayJob)); results = xQueueCreate(4, sizeof(PlaybackEvent));
     JsonDocument saved;
     const bool configured = !deserializeJson(saved, preferences.getString("config", "{}")) && read_config(saved, config);
     audio_ok = frames && jobs && results && board_audio::begin();
-    Serial.printf("SMART_SPEAKER 0.1.1 audio=%s flash=%u psram=%u\n", audio_ok ? "ready" : "error", ESP.getFlashChipSize(), ESP.getPsramSize());
+    Serial.printf("SMART_SPEAKER %s audio=%s flash=%u psram=%u\n", board_config::firmware, audio_ok ? "ready" : "error", ESP.getFlashChipSize(), ESP.getPsramSize());
     if (audio_ok && configured) audio_ok = xTaskCreatePinnedToCore(audio_task, "speaker-audio", 16384, nullptr, 2, nullptr, 1) == pdPASS;
     if (!configured) { start_setup(); return; }
     parse_hub(config.hub, hub_host, hub_port);
@@ -223,19 +237,24 @@ void setup() {
 void loop() {
     check_serial();
     if (reboot_at && static_cast<int32_t>(millis() - reboot_at) >= 0) ESP.restart();
-    const bool button = digitalRead(12) == LOW;
+    const auto touch_action = board_display::poll();
+    const bool button = digitalRead(board_config::button) == LOW;
     if (button != previous_button && millis() - last_button_change > 40) {
         last_button_change = millis(); previous_button = button;
-        if (button) { button_since = millis(); hold_handled = false; }
+        if (button) { button_since = millis(); hold_handled = false; board_display::wake(); }
         else if (!hold_handled && millis() - button_since > 40) {
             muted = !muted.load(); if (frames) xQueueReset(frames);
             if (connected) { JsonDocument doc; doc["type"] = "muted"; doc["value"] = muted.load(); String text; serializeJson(doc, text); socket.sendTXT(text); }
         }
     }
     if (button && !hold_handled && millis() - button_since >= 5000) { hold_handled = true; start_setup(); }
+    if (touch_action == board_display::Action::mute && !setup_mode) {
+        muted = !muted.load(); if (frames) xQueueReset(frames);
+        if (connected) { JsonDocument doc; doc["type"] = "muted"; doc["value"] = muted.load(); String text; serializeJson(doc, text); socket.sendTXT(text); }
+    }
     if (millis() - last_volume_change > 200) {
-        if (digitalRead(19) == LOW) { volume = std::min(100, volume.load() + 5); last_volume_change = millis(); if (ready) report_volume(); }
-        if (digitalRead(32) == LOW) { volume = std::max(0, volume.load() - 5); last_volume_change = millis(); if (ready) report_volume(); }
+        if ((board_config::volume_up >= 0 && digitalRead(board_config::volume_up) == LOW) || touch_action == board_display::Action::louder) { volume = std::min(100, volume.load() + 5); last_volume_change = millis(); if (ready) report_volume(); }
+        if ((board_config::volume_down >= 0 && digitalRead(board_config::volume_down) == LOW) || touch_action == board_display::Action::quieter) { volume = std::max(0, volume.load() - 5); last_volume_change = millis(); if (ready) report_volume(); }
     }
     if (setup_mode) { dns.processNextRequest(); portal.handleClient(); if (millis() - setup_started > 600000) { portal.stop(); dns.stop(); WiFi.softAPdisconnect(true); setup_mode = false; } }
     else {
@@ -248,5 +267,7 @@ void loop() {
     uint32_t color = !audio_ok ? led.Color(180, 0, 0) : setup_mode ? led.Color(40, 80, 180) : muted || hub_paused ? led.Color(150, 45, 0) : playing ? led.Color(90, 20, 130) : !ready ? led.Color(130, 10, 10) : state_name == "waiting" || state_name == "transcribing" || state_name == "synthesizing" ? led.Color(90, 80, 0) : led.Color(0, 70, 25);
     static uint32_t previous_color = 0xFFFFFFFF;
     if (color != previous_color) { led.setPixelColor(0, color); led.show(); previous_color = color; }
+    const String display_state = !audio_ok ? "Audio error" : setup_mode ? "Wi-Fi setup" : muted ? "Muted" : hub_paused ? "Paused" : playing ? "Speaking" : !ready ? "Connecting" : state_name == "waiting" ? "Thinking" : state_name == "transcribing" ? "Recognizing" : state_name == "synthesizing" ? "Preparing" : "Listening";
+    board_display::update(display_state, volume.load(), muted || playing || hub_paused ? 0 : microphone_level.load(), WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : "Wi-Fi offline");
     delay(1);
 }
