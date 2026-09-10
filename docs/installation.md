@@ -28,7 +28,7 @@ It finds the portable app relative to the repository. If you moved it, pass `-Ex
 
 ## USB and firmware
 
-Only the original Muse Luxe ES8388 board is supported. See [hardware.md](hardware.md) before flashing. Use a USB data cable, turn on the device and locate its COM port in Device Manager. Install the appropriate Silicon Labs CP210x driver if no serial port appears. Close any serial terminal using that port.
+The original Muse Luxe ES8388, SpotPear Ball V2 / 1.28-inch BOX ES8311 and Waveshare ESP32-S3-AUDIO-Board ES8311/ES7210 boards are supported. See [hardware.md](hardware.md) before flashing. Use a USB data cable, turn on the device and locate its COM port in Device Manager. Muse Luxe uses a Silicon Labs CP210x USB bridge; SpotPear uses the ESP32-S3 native USB JTAG/serial interface. Close any serial terminal using that port.
 
 From the repository directory, replacing COM7 with the actual port:
 
@@ -37,7 +37,7 @@ From the repository directory, replacing COM7 with the actual port:
 .\scripts\firmware.ps1 -Action Flash -Port COM7
 ```
 
-**Backup** reads exactly 4 MB. **Flash** builds the factory image, creates another complete backup, writes the bootloader, partitions and app at offset 0, and independently verifies the written image. It replaces existing firmware and provisioning. Never interrupt power during writing.
+These commands default to Muse Luxe. Add `-Board spotpear_ball_v2` for SpotPear or `-Board waveshare_s3_audio` for the Waveshare audio board to every firmware command. **Backup** reads all flash: 4 MB for Muse Luxe or 16 MB for either ESP32-S3 target. **Flash** builds the selected factory image, creates another complete backup, writes the bootloader, partitions and app at offset 0, and independently verifies the written image. It replaces existing firmware and provisioning. Never interrupt power during writing.
 
 For later updates using this project's partition layout:
 
@@ -45,7 +45,7 @@ For later updates using this project's partition layout:
 .\scripts\firmware.ps1 -Action Update -Port COM7
 ```
 
-**Update** backs up all flash, writes only the application at `0x10000`, and verifies it. It preserves NVS, which contains Wi-Fi credentials and device identity. Use **Flash** for the initial installation, because **Update** assumes the partition table already matches this project. **Build** only creates images and requires no USB port.
+**Update** backs up all flash, checks that the installed partition table matches the selected target, writes only the application at `0x10000`, and verifies it. It preserves NVS, which contains Wi-Fi credentials and device identity. Use **Flash** for the initial installation. **Build** only creates images and requires no USB port. `-ToolsDirectory` optionally reuses a previously bootstrapped `.tools` directory when building in a separate checkout.
 
 Private flash backups live under `backups/` and may contain credentials. Keep them outside shared files and public releases. To restore a verified full backup on the same device, use the bundled esptool to write it at offset 0 and run `verify-flash` against the same file. Restoration replaces all device state with that backup.
 
@@ -53,7 +53,7 @@ Private flash backups live under `backups/` and may contain credentials. Keep th
 
 Add and save a speaker in the desktop first. Its setup dialog contains the hub URL, permanent ID and device token. After flashing, join `Speaker-setup-…` (password `speaker-setup`) and open `http://192.168.4.1`. Enter your 2.4 GHz Wi-Fi credentials and the saved hub/device values. The device restarts after saving.
 
-The setup access point closes after ten minutes. Hold the middle button for five seconds to reopen it. Provision near the device on a trusted network, since setup has a shared bootstrap password.
+The setup access point closes after ten minutes. Hold the Muse Luxe middle button or SpotPear BOOT button for five seconds to reopen it. Provision near the device on a trusted network, since setup has a shared bootstrap password.
 
 Alternatively, use **Provision over USB** in the desktop setup dialog. Enter Wi-Fi credentials, copy the JSON into a private `my-provision.json` file, and run:
 
@@ -69,15 +69,24 @@ Wait for the device to appear online. Select **Test voice**, then say a phrase c
 
 Each speaker has saved microphone gain and playback volume. Increase gain gradually and avoid a continuously red mic meter. Gain affects recognition audio after raw phrase segmentation. Lower the global speech threshold if quiet speech does not start a phrase; raise it if room noise keeps starting phrases. Higher gain does not itself lower the raw speech threshold.
 
-The buttons mute/unmute, adjust session volume and reopen setup. Reconnection restores the desktop's saved volume. LED states:
+When different boards need different input calibration, the speaker's setup page and USB provisioning JSON also accept `mic_gain` from 0.25 to 8 (default 1). This firmware gain changes raw microphone PCM before the hub detects phrases. If one board's background noise continuously exceeds a threshold that suits your other speakers, lower that board's firmware gain. You can raise its desktop microphone gain to preserve recognition volume, for example firmware 0.5 with desktop 2. Save these values in your own private provisioning/settings files. Verify normal phrase endings and microphone pickup afterward; long recordings that repeatedly reach the maximum phrase duration usually indicate the threshold is below the room's noise level.
+
+Muse/Waveshare buttons mute, adjust volume and reopen setup. Round BOOT cycles screens; on-screen controls adjust gain, volume and mute. Physical/touch adjustments are saved after two seconds. Device-owned volume takes precedence over the reference desktop's initial default on subsequent connections. LED states:
 
 | Color | Meaning |
 | --- | --- |
-| Green | Listening |
-| Yellow | Processing |
-| Purple | Playback |
+| Mint | Listening |
+| Sky blue | Recognizing speech |
+| Violet | Waiting for the AI response |
+| Gold | Preparing speech audio |
+| Green | Playback |
 | Amber | Muted or paused |
-| Blue | Setup mode |
-| Red | Disconnected or audio initialization failure |
+| Slate blue | Connecting or setup mode |
+| Coral red | Audio initialization failure |
+| Blinking coral red | Alarm |
+
+The SpotPear LCD uses a black background, adjustable backlight and always-on eyes by default. BOOT switches to a status page with mute, volume and gain controls. The [device API](device-api.md) changes expressions, screen state, brightness and optional timeout. First touch on a dark display only wakes it. Microphone capture continues while the display is dark. The BOOT button works without touch support.
 
 If the mic is silent, check USB startup diagnostics (`audio=ready`), device mute and channel selection. If you see phrases but no response, check wake names, the endpoint URL, model ID, bearer token and the device's error status. Long transcription times depend on model size, CPU and concurrent room activity. Use [explicit microphone diagnostics](API.md#explicit-microphone-sample) when needed. Diagnostics can contain private speech; keep their output local.
+
+If speech is transcribed but no request is sent, inspect one explicit recognition observation. A short name can be rendered with a different spelling. Add an observed phonetic spelling to your local wake-name list, then repeat the live test. Keep personalized wake names in local settings. Avoid adding ordinary unrelated words as aliases.

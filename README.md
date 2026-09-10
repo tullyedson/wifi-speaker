@@ -4,9 +4,11 @@ Turn a supported ESP32 speaker into a voice interface for an **OpenAI-compatible
 
 Choose a wake name, connect multiple speakers, give each a name and room tags, and save independent microphone gain and playback volume. Requests carry the originating speaker's identity so replies return to the right room.
 
+Firmware also provides a direct device API for persistent audio settings, RGB effects and local alarms. The round display has animated cartoon eyes whose expressions can be selected by your AI. The Rust desktop app remains a reference audio hub that you can replace with your own compatible service.
+
 This is a source release. Build the portable desktop app and firmware as described below. No accounts, LLM service, deployment addresses or credentials are included.
 
-[Requirements](#requirements) · [Build](#build-on-windows) · [Hub settings](#set-up-the-hub) · [Speaker setup](#install-a-muse-luxe) · [First conversation](#check-your-first-conversation) · [Application API](#connect-your-application) · [Troubleshooting](#troubleshooting) · [Contributing](#development-and-contributions)
+[Requirements](#requirements) · [Build](#build-on-windows) · [Hub settings](#set-up-the-hub) · [Muse setup](#install-a-muse-luxe) · [SpotPear setup](#install-a-spotpear-ball-v2) · [Waveshare setup](#install-a-waveshare-audio-board) · [Device controls](#control-a-device-directly) · [First conversation](#check-your-first-conversation) · [Application API](#connect-your-application) · [Troubleshooting](#troubleshooting) · [Contributing](#development-and-contributions)
 
 ## How it works
 
@@ -26,12 +28,12 @@ The hub buffers and transcribes detected phrases before checking for a whole-wor
 | Component | What you need |
 | --- | --- |
 | Desktop | Windows 10/11 x64, Microsoft WebView2, and an installed Windows speech voice |
-| Speaker | Original **RASPIAUDIO Muse Luxe**, with ESP32, ES8388 codec and 4 MB flash |
+| Speaker | Original **RASPIAUDIO Muse Luxe** (ESP32 / ES8388 / 4 MB), **SpotPear Ball V2 / 1.28-inch BOX** (ESP32-S3 / ES8311 / 16 MB, optional touch and battery), or **Waveshare ESP32-S3-AUDIO-Board** (ES8311 + ES7210, dual microphones and seven RGB LEDs) |
 | Network | 2.4 GHz Wi-Fi for the speaker, with network access to the Windows PC; the PC may use Ethernet |
 | Reply backend | An OpenAI-compatible chat-completions endpoint and model, or an app implementing the [webhook API](docs/API.md) |
 | Initial installation | USB data cable and the device's COM port in Windows Device Manager |
 
-Other ESP32 speaker boards need a firmware port for their codec, pins and flash layout. Do not flash this Muse Luxe image onto a different board. See [hardware support and porting](docs/hardware.md).
+Choose the firmware target that matches the device. Other ESP32 boards, including the older SpotPear Ball V1, need a different driver. See [hardware support and porting](docs/hardware.md).
 
 Local speech recognition uses the English Whisper `base.en` model by default. Your LLM is a separate service that you supply; it may run locally or remotely. Local STT and TTS do not require a cloud speech account. Initial dependency/model downloads and any remote backend need internet access.
 
@@ -52,6 +54,12 @@ Install Git, Python 3.11 or newer, the Rust stable **MSVC** toolchain, and Visua
 
 # Build the Muse Luxe image without touching a connected device.
 .\scripts\firmware.ps1 -Action Build
+
+# For the SpotPear Ball V2, select its separate image instead.
+.\scripts\firmware.ps1 -Action Build -Board spotpear_ball_v2
+
+# For a Waveshare audio board, select its own audio driver.
+.\scripts\firmware.ps1 -Action Build -Board waveshare_s3_audio
 
 # Assemble the portable desktop folder.
 .\scripts\package.ps1
@@ -117,6 +125,68 @@ For later firmware updates **after installing this project's partition layout**,
 
 **Update** takes a full backup, writes only the application, verifies it and preserves Wi-Fi/device credentials. Use **Flash** for first installation. [Installation and troubleshooting](docs/installation.md) covers backups, restoration, USB setup and LED indicators.
 
+## Install a SpotPear Ball V2
+
+Select the newer **ESP32-S3-1.28inch-AI-legs / BOX** board with the ES8311 codec. Touch and battery are optional. The older, smaller Ball V1 uses different audio wiring. A sticker's firmware version alone does not identify the hardware.
+
+Replace COM7 with the device's actual USB JTAG/serial COM port:
+
+```powershell
+.\scripts\firmware.ps1 -Action Flash -Board spotpear_ball_v2 -Port COM7
+```
+
+This builds the ESP32-S3 image and saves all 16 MB of factory flash before installing. Complete the same Wi-Fi or USB provisioning steps as the Muse Luxe. The screen shows connection/processing state and a microphone meter. On the touch version, tap the center to mute/unmute and use the on-screen minus/plus buttons for volume. A short **BOOT** press cycles between controls and animated eyes; holding BOOT for five seconds opens setup. The separate physical power button keeps its original function. The status screen also has microphone-gain controls. The meter shows device input on a more sensitive scale than the desktop's normalized level.
+
+The screen has a black background and adjustable LED backlight, and stays on by default. The eyes look around, blink, and react happily to a tap. Set a timeout or switch the backlight off through the device API; microphone listening continues. Tap once to wake it before using touch controls. Reply processing/playback can wake an automatically timed-out display; an explicit API sleep remains asleep until a touch, button, alarm or remote wake.
+
+The face has no text. Eye color shows the current phase, including when your AI selects an expression:
+
+| Eye color | Phase |
+| --- | --- |
+| Mint | Listening for a request |
+| Sky blue | Recognizing speech |
+| Violet | Waiting for the AI response |
+| Gold | Preparing speech audio |
+| Green | Speaking |
+| Amber | Microphone muted or hub paused |
+| Coral red | Alarm or audio error |
+| Slate blue | Connecting or Wi-Fi setup |
+
+Use the controls screen for text labels, the microphone meter, volume and gain.
+
+Physical RGB LEDs use the same phase palette on every board, including the screenless Waveshare. Alarms blink coral red. An API-requested cosmetic LED effect temporarily replaces normal phase colors; mute, pause, setup, audio error and alarm indicators take priority.
+
+For later updates, use `-Action Update -Board spotpear_ball_v2 -Port COM7`. Updates check the installed partition table before writing and preserve provisioning. Firmware images are named `spotpear-ball-v2-factory.bin` and `spotpear-ball-v2-app.bin` under `artifacts/firmware/`.
+
+## Install a Waveshare audio board
+
+Select the **ESP32-S3-AUDIO-Board** with ES8311 output, ES7210 microphone ADC, TCA9555 expander and seven WS2812 LEDs. It has a different pinout from the round SpotPear. This target uses the attached speaker and microphones without requiring an LCD.
+
+```powershell
+.\scripts\firmware.ps1 -Action Flash -Board waveshare_s3_audio -Port COM7
+```
+
+Replace COM7 with its actual native USB serial port. The helper preserves all 16 MB of flash before installation. Provision the same 2.4 GHz Wi-Fi and audio-hub fields as the other devices. Use `-Action Update -Board waveshare_s3_audio` for later application-only updates. BOOT or KEY2 mutes/unmutes; KEY1 reduces volume and KEY3 increases it. Hold BOOT for five seconds to reopen setup. An active alarm can be stopped with a short BOOT or KEY2 press.
+
+The two microphone inputs are initialized, and `mic_channel` selects one for the mono stream. The separate speaker-reference ADC input is reserved for future echo cancellation. This version does not implement beamforming or echo cancellation. Use the [recording diagnostics](docs/API.md#explicit-microphone-sample) to select and tune the microphone in your room.
+
+## Control a device directly
+
+Every board runs an authenticated HTTP API on port 80, independent of the Windows app. The round device adds display controls. Use its LAN address or `<speaker_id>.local` where mDNS works.
+
+| Device endpoint | Purpose |
+| --- | --- |
+| `GET /v1/device` | Identity, audio, display, indicator and alarm state |
+| `GET /v1/config`, `PATCH /v1/config` | Read non-secret settings; save gain, volume, identity labels, display defaults or a new audio destination |
+| `POST /v1/display` | Wake/sleep the LCD, select a screen, expression, gaze or blink |
+| `POST /v1/led` | Set RGB color, solid/breathing/blinking effect and expiry |
+| `POST /v1/alarms` | Generate a bounded local chime, beep or siren |
+| `POST /v1/alarms/stop` | Stop the matching alarm ID |
+
+The [device API guide](docs/device-api.md) contains every field, authentication, persistence, alarm ownership/cancellation, sample code and the path for replacing the reference hub. `scripts/device_client.py` is a small Python reference client. Your calling AI controls the expression; blinking and eye movements run on the device.
+
+An accepted alarm can run with the speech hub disconnected. Future schedules belong to the calling application. Settings survive power loss; runtime expressions and active alarms do not. Keeping the display dark does not put the ESP32 to sleep. Turning the physical power off stops listening and remote control.
+
 ## Check your first conversation
 
 1. Wait for the speaker to show online/listening, then select **Test voice**. This checks TTS and playback without needing an LLM reply.
@@ -125,7 +195,7 @@ For later firmware updates **after installing this project's partition layout**,
 
 Each speaker card has **Microphone gain** (0.25x to 8x) and **Playback volume** (0 to 100%). Adjust gradually and save. Gain raises audio used for recognition after phrase detection; the global speech threshold controls whether quiet raw microphone audio starts a phrase. See [audio tuning](docs/installation.md#check-sound-and-listening).
 
-A short middle-button press mutes/unmutes the microphone. Plus/minus changes the device's current volume; reconnecting restores the saved desktop volume. Names are for display, permanent IDs route replies, and tags let an app address rooms or groups.
+A short press of the Muse middle button or Waveshare BOOT/KEY2 mutes/unmutes the microphone. The round SpotPear BOOT button cycles screens. Physical or touch volume and gain adjustments are saved on the device after two seconds. Once device volume is set locally, it survives reconnection and takes precedence over the desktop's initial volume default. Names are for display, permanent IDs route replies, and tags let an app address rooms or groups.
 
 ## Connect your application
 
@@ -161,8 +231,9 @@ Normal operation keeps audio and transcripts in memory. Only phrases matching a 
 
 | Symptom | Check first |
 | --- | --- |
-| No COM port | Speaker power, USB data cable, CP210x driver and another program holding the port |
-| No setup Wi-Fi | Hold the middle button for five seconds; the setup window expires after ten minutes |
+| No COM port | Speaker power, USB data cable, CP210x driver for Muse Luxe, and another program holding the port |
+| No setup Wi-Fi | Hold the Muse middle button or SpotPear BOOT button for five seconds; the setup window expires after ten minutes |
+| SpotPear screen is dark | Tap once to wake it; check the configured backlight timeout and API sleep state |
 | Speaker stays offline | Saved device ID/token, reachable PC address, 2.4 GHz Wi-Fi, firewall and guest/IoT network isolation |
 | Meter moves but no reply | Configured wake name, speech model, raw speech threshold, prompt URL/model/token and the speaker's error status |
 | Quiet input or playback | That speaker's saved gain/volume, mute state and selected Windows voice |
@@ -181,7 +252,7 @@ Fork the project, make a focused branch and open a PR. The [contribution guide](
 | --- | --- |
 | `crates/hub` | Rust audio processing, speech, HTTP/WebSocket API and CLI |
 | `desktop`, `ui` | Tauri tray app and bundled settings interface |
-| `firmware` | Muse Luxe audio, Wi-Fi, provisioning and transport |
+| `firmware` | Three board drivers, animated display, device API, alarms, Wi-Fi and audio transport |
 | `scripts` | Build, package, firmware, simulator and diagnostic helpers |
 | `docs` | Protocol, installation, hardware and third-party notices |
 

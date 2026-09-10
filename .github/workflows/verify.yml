@@ -47,4 +47,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./scripts/package.ps1
       - name: Build firmware without flashing
-        run: ./scripts/firmware.ps1 -Action Build
+        run: |
+          ./scripts/firmware.ps1 -Action Build -Board muse_luxe
+          ./scripts/firmware.ps1 -Action Build -Board spotpear_ball_v2
+          ./scripts/firmware.ps1 -Action Build -Board waveshare_s3_audio

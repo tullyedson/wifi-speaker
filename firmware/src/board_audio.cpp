@@ -1,4 +1,6 @@
 #include "board_audio.h"
+#include "board_config.h"
+#include "board_controls.h"
 #include <Wire.h>
 #include <driver/i2s.h>
 #include <algorithm>
@@ -7,16 +9,42 @@ namespace board_audio {
 namespace {
 constexpr i2s_port_t port = I2S_NUM_0;
 bool write_register(uint8_t reg, uint8_t value) {
+#if defined(BOARD_SPOTPEAR_BALL_V2) || defined(BOARD_WAVESHARE_S3_AUDIO)
+    Wire.beginTransmission(0x18); Wire.write(reg); Wire.write(value);
+#else
     Wire.beginTransmission(0x10); Wire.write(reg); Wire.write(value);
+#endif
     return Wire.endTransmission() == 0;
 }
+#if defined(BOARD_WAVESHARE_S3_AUDIO)
+bool begin_microphones() {
+    // ES7210: MIC1 and MIC2 in ordinary stereo I2S, 16 bits, 16 kHz.
+    // MIC3 is the board's analog speaker reference and is deliberately disabled.
+    // Adapted from Espressif esp_codec_dev (Apache-2.0), see docs/third-party/es7210.md.
+    const uint8_t configuration[][2] = {
+        {0x00,0xFF}, {0x00,0x41}, {0x01,0x3F}, {0x09,0x30}, {0x0A,0x30},
+        {0x23,0x2A}, {0x22,0x0A}, {0x20,0x0A}, {0x21,0x2A}, {0x08,0x10},
+        {0x40,0x43}, {0x41,0x70}, {0x42,0x70}, {0x07,0x20}, {0x02,0xC1},
+        {0x04,0x01}, {0x05,0x00}, {0x11,0x60}, {0x12,0x00},
+        {0x43,0x18}, {0x44,0x18}, {0x45,0x00}, {0x46,0x00}, // MIC1/2 +24 dB.
+        {0x4B,0x00}, {0x4C,0xFF}, {0x01,0x34}, {0x06,0x00},
+        {0x47,0x08}, {0x48,0x08}, {0x49,0xFF}, {0x4A,0xFF},
+        {0x40,0x43}, {0x00,0x71}, {0x00,0x41}, {0x14,0x00}, {0x15,0x00}
+    };
+    for (const auto& item : configuration) {
+        Wire.beginTransmission(0x40); Wire.write(item[0]); Wire.write(item[1]);
+        if (Wire.endTransmission() != 0) { Serial.printf("ES7210 register %02X failed\n", item[0]); return false; }
+    }
+    return true;
+}
+#endif
 }
 
 bool begin() {
-    // Muse Luxe routing: ES8388 codec, shared I2S clocks, GPIO21 amplifier enable.
-    // Register meanings and board pins are documented in docs/hardware.md.
-    pinMode(21, OUTPUT); digitalWrite(21, LOW);
-    Wire.begin(18, 23, 100000);
+    if (!Wire.begin(board_config::sda, board_config::scl, 100000)) return false;
+    Wire.setTimeOut(50);
+    if (!board_controls::begin()) return false;
+#if defined(BOARD_MUSE_LUXE)
     if (!write_register(0, 0x80)) return false;
     delay(10);
     const uint8_t configuration[][2] = {
@@ -28,6 +56,7 @@ bool begin() {
         {18,0x00}, {22,0x00}, {46,0x18}, {47,0x18}, {25,0x00}
     };
     for (const auto& item : configuration) if (!write_register(item[0], item[1])) return false;
+#endif
     i2s_config_t config = {};
     config.mode = static_cast<i2s_mode_t>(I2S_MODE_MASTER | I2S_MODE_TX | I2S_MODE_RX);
     config.sample_rate = sample_rate;
@@ -36,16 +65,39 @@ bool begin() {
     config.communication_format = I2S_COMM_FORMAT_STAND_I2S;
     config.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1;
     config.dma_buf_count = 8; config.dma_buf_len = frame_samples;
-    config.use_apll = true; config.tx_desc_auto_clear = true;
+    config.use_apll = board_config::use_apll; config.tx_desc_auto_clear = true;
     config.fixed_mclk = sample_rate * 256;
     if (i2s_driver_install(port, &config, 0, nullptr) != ESP_OK) return false;
     i2s_pin_config_t pins = {};
-    pins.mck_io_num = 0; pins.bck_io_num = 5; pins.ws_io_num = 25;
-    pins.data_out_num = 26; pins.data_in_num = 35;
+    pins.mck_io_num = board_config::mclk; pins.bck_io_num = board_config::bclk; pins.ws_io_num = board_config::lrclk;
+    pins.data_out_num = board_config::audio_out; pins.data_in_num = board_config::audio_in;
     if (i2s_set_pin(port, &pins) != ESP_OK) { i2s_driver_uninstall(port); return false; }
     i2s_zero_dma_buffer(port);
-    digitalWrite(21, HIGH);
-    return true;
+#if defined(BOARD_SPOTPEAR_BALL_V2) || defined(BOARD_WAVESHARE_S3_AUDIO)
+    // ES8311 slave, analog microphone, 16-bit I2S, MCLK=4.096 MHz / 16 kHz.
+    // Clock coefficients and power sequence follow Espressif's Apache-2.0
+    // esp_codec_dev ES8311 driver. See docs/third-party/es8311.md.
+    write_register(0x44, 0x08); // The first access after power-up may fail.
+    const uint8_t configuration[][2] = {
+        {0x44,0x08}, {0x01,0x30}, {0x02,0x00}, {0x03,0x10}, {0x16,0x24},
+        {0x04,0x10}, {0x05,0x00}, {0x0B,0x00}, {0x0C,0x00}, {0x10,0x1F},
+        {0x11,0x7F}, {0x00,0x80}, {0x01,0x3F}, {0x06,0x03}, {0x13,0x10},
+        {0x1B,0x0A}, {0x1C,0x6A}, {0x44,0x08},
+        {0x02,0x00}, {0x03,0x10}, {0x04,0x20}, {0x05,0x00},
+        {0x07,0x00}, {0x08,0xFF}, {0x09,0x0C}, {0x0A,0x0C},
+        {0x17,0xBF}, {0x0E,0x02}, {0x12,0x00}, {0x14,0x1A},
+        {0x0D,0x01}, {0x15,0x40}, {0x37,0x08}, {0x45,0x00},
+        {0x16,0x04}, // +24 dB microphone gain; desktop provides fine adjustment.
+        {0x31,0x00}, {0x32,0xBF} // DAC unmuted at 0 dB; PCM applies volume.
+    };
+    for (const auto& item : configuration) {
+        if (!write_register(item[0], item[1])) { i2s_driver_uninstall(port); return false; }
+    }
+#endif
+#if defined(BOARD_WAVESHARE_S3_AUDIO)
+    if (!begin_microphones()) { i2s_driver_uninstall(port); return false; }
+#endif
+    return board_controls::amplifier(true);
 }
 
 size_t capture(int16_t* mono, size_t samples, uint8_t channel, float gain) {
