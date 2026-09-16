@@ -193,7 +193,8 @@ Every board runs an authenticated HTTP API on port 80, independent of the Window
 
 | Device endpoint | Purpose |
 | --- | --- |
-| `GET /v1/device` | Identity, audio, display, indicator and alarm state |
+| `GET /v1/device` | Identity, audio, display, indicator, alarm and sensor state |
+| `GET /v1/sensors` | Temperature in Celsius/Fahrenheit, relative humidity and reading availability on BOX-3 with its SENSOR base |
 | `GET /v1/config`, `PATCH /v1/config` | Read non-secret settings; save gain, volume, identity labels, display defaults or a new audio destination |
 | `POST /v1/display` | Wake/sleep the LCD, select a screen, expression, gaze or blink |
 | `POST /v1/led` | Set RGB color, solid/breathing/blinking effect and expiry |
@@ -201,6 +202,8 @@ Every board runs an authenticated HTTP API on port 80, independent of the Window
 | `POST /v1/alarms/stop` | Stop the matching alarm ID |
 
 The [device API guide](docs/device-api.md) contains every field, authentication, persistence, alarm ownership/cancellation, sample code and the path for replacing the reference hub. `scripts/device_client.py` is a small Python reference client. Your calling AI controls the expression; blinking and eye movements run on the device.
+
+BOX-3 firmware 0.2.1 also reads the optional **SENSOR base's temperature and humidity sensor** every ten seconds. The small stand has no ambient sensor. Responses include the speaker ID/name/tags, sample age and explicit unavailable states. Call `DeviceClient.sensors()` or use the client's `sensors` command; see the [sensor API](docs/device-api.md#get-v1sensors). BOX-3 has no built-in camera, and this firmware does not implement an external USB camera or the base's radar/infrared features.
 
 An accepted alarm can run with the speech hub disconnected. Future schedules belong to the calling application. Settings survive power loss; runtime expressions and active alarms do not. Keeping the display dark does not put the ESP32 to sleep. Turning the physical power off stops listening and remote control.
 

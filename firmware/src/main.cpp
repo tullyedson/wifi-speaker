@@ -15,6 +15,7 @@
 #include "board_config.h"
 #include "board_controls.h"
 #include "board_display.h"
+#include "board_sensors.h"
 #include "device_config.h"
 #include "status_colors.h"
 
@@ -236,6 +237,7 @@ void device_status() {
     doc["audio_uploading"] = ready && !muted && !hub_paused && !playing && !alarm_active && !setup_mode;
     doc["uptime_ms"] = millis(); doc["free_heap"] = ESP.getFreeHeap(); doc["settings_pending"] = controls_changed != 0;
     board_display::status(doc["display"].to<JsonObject>());
+    board_sensors::status(doc["sensors"].to<JsonObject>());
     doc["led"]["count"] = board_config::led_count; doc["led"]["effect"] = led_effect;
     char color[8]; snprintf(color, sizeof(color), "#%06X", led_color); doc["led"]["color"] = color;
     doc["led"]["brightness"] = led_brightness;
@@ -327,6 +329,14 @@ bool setup_client() { return setup_mode && portal.client().localIP() == WiFi.sof
 void start_api() {
     const char* headers[] = {"Authorization", "Content-Type"}; portal.collectHeaders(headers, 2);
     portal.on("/v1/device", HTTP_GET, device_status);
+    portal.on("/v1/sensors", HTTP_GET, [] {
+        if (!authorized()) return;
+        JsonDocument doc; doc["api_version"] = 1; doc["speaker_id"] = config.id; doc["name"] = config.name;
+        JsonArray tags = doc["tags"].to<JsonArray>(); for (const String& tag : config.tags) tags.add(tag);
+        doc["uptime_ms"] = millis();
+        board_sensors::status(doc["sensors"].to<JsonObject>());
+        json_response(200, doc);
+    });
     portal.on("/v1/config", HTTP_GET, [] { if (!authorized()) return; JsonDocument doc; device_config::write(config, doc, false); json_response(200, doc); });
     portal.on("/v1/config", HTTP_PATCH, configure_api);
     portal.on("/v1/display", HTTP_POST, display_api);
@@ -395,6 +405,7 @@ void setup() {
     if (config.volume >= 0) volume = config.volume;
     board_display::configure(config.brightness, config.screen_timeout_ms, config.default_screen);
     audio_ok = frames && jobs && results && alarm_jobs && board_audio::begin();
+    board_sensors::begin();
     Serial.printf("SMART_SPEAKER %s audio=%s flash=%u psram=%u\n", board_config::firmware, audio_ok ? "ready" : "error", ESP.getFlashChipSize(), ESP.getPsramSize());
     if (audio_ok && configured) audio_ok = xTaskCreatePinnedToCore(audio_task, "speaker-audio", 16384, nullptr, 2, nullptr, 1) == pdPASS;
     if (!configured) { start_setup(); start_api(); return; }
@@ -410,6 +421,7 @@ void setup() {
 
 void loop() {
     check_serial();
+    board_sensors::update();
     if (reboot_at && static_cast<int32_t>(millis() - reboot_at) >= 0) ESP.restart();
     const auto touch_action = board_display::poll();
     if (touch_action == board_display::Action::cycle) {

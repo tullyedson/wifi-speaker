@@ -1,4 +1,4 @@
-# Device control API, firmware 0.2.0
+# Device control API
 
 Each device serves its own HTTP API on port 80. This works independently of the reference Windows hub. Use the device's DHCP address, or `http://<speaker_id>.local` where mDNS is supported. All `/v1/` routes require `Authorization: Bearer <control_token>` and return `Cache-Control: no-store`. POST and PATCH bodies use `application/json`, with a maximum accepted size of 4,096 bytes. No cloud account is needed.
 
@@ -17,6 +17,7 @@ from scripts.device_client import DeviceClient
 speaker = DeviceClient(os.environ['SPEAKER_URL'],
                        os.environ['SPEAKER_CONTROL_TOKEN'])
 print(speaker.status())
+print(speaker.sensors())
 speaker.display(screen='eyes', awake=True, expression='happy', duration_ms=8000)
 speaker.led(color='#77EEDD', effect='breathe', brightness=20, duration_ms=8000)
 speaker.alarm('timer-42', duration_ms=5000, pattern='chime', volume=45)
@@ -34,9 +35,53 @@ Keep provisioning, tokens and command files containing private settings out of G
 
 ## GET /v1/device
 
-Returns the permanent `speaker_id`, local `name` and `tags`, firmware version, `audio_ready`, `hub_connected`, microphone mute/gain/level/channel, current playback volume, `audio_uploading`, uptime, free heap and `settings_pending`. Nested objects describe the display, RGB indicator and current alarm. Microphone level is normalized RMS, not a percentage of recognition confidence.
+Returns the permanent `speaker_id`, local `name` and `tags`, firmware version, `audio_ready`, `hub_connected`, microphone mute/gain/level/channel, current playback volume, `audio_uploading`, uptime, free heap and `settings_pending`. Nested objects describe the display, RGB indicator, current alarm and sensors. Microphone level is normalized RMS, not a percentage of recognition confidence.
 
 `display.available` is false on headless boards. A display additionally reports `awake`, `screen`, `expression`, `brightness`, `timeout_ms`, `look_x`, `look_y`, `width`, `height` and touch availability. The LED object reports the requested effect/color/brightness and physical pixel count; BOX-3 reports zero pixels. Operational indicators may override cosmetic LED commands. Alarm states are `idle`, `queued`, `playing`, `finished`, `cancelled` and `error`. Audio readiness and playback completion are software observations; listen to the physical speaker to judge sound quality.
+
+## GET /v1/sensors
+
+Available in BOX-3 firmware 0.2.1 and builds containing the sensor driver. Returns the device's `api_version`, permanent `speaker_id`, `name`, `tags`, `uptime_ms` and `sensors`. The same sensor object is included in `/v1/device`. This endpoint uses the device control token and works without the speech hub.
+
+The **ESP32-S3-BOX-3-SENSOR base** contains an AHT30 ambient temperature and relative humidity sensor. The small DOCK stand does not contain it. Attach the appropriate base with power off, then power the device normally. Sampling runs approximately every ten seconds, including with the display asleep or microphone muted. HTTP reads return the latest snapshot without triggering additional conversions. No readings are written to flash or retained as a history.
+
+Example response values are illustrative:
+
+```json
+{
+  "api_version": 1,
+  "speaker_id": "speaker-kitchen",
+  "name": "Kitchen",
+  "tags": ["downstairs"],
+  "uptime_ms": 15000,
+  "sensors": {
+    "temperature_humidity": {
+      "supported": true,
+      "sensor": "aht30",
+      "available": true,
+      "state": "ready",
+      "temperature_c": 25.0,
+      "temperature_f": 77.0,
+      "humidity_percent": 50.0,
+      "sampled_at_uptime_ms": 12000,
+      "sample_age_ms": 3000,
+      "poll_interval_ms": 10000
+    }
+  }
+}
+```
+
+`supported` means that the firmware supports this sensor, not that the base is attached. Check `available` before using a value. `state` is `starting`, `ready`, `not_detected`, `bus_error`, `read_error`, `timeout`, `invalid_data`, `stale` or `unsupported`. An absent sensor is retried on the normal interval. Transport errors, checksum failures and invalid measurements make readings unavailable immediately. Samples older than 30 seconds are also unavailable. All measurement and sample-time fields are `null` when unavailable, never invented zero values or old values presented as current. Uptime timestamps are milliseconds since boot, not wall-clock time.
+
+Other board targets return `supported:false`, `available:false`, `sensor:null` and `state:"unsupported"`, with null readings. Ordinary absence is HTTP 200 so a controller can discover capabilities. Missing/invalid authentication still returns 401. Older firmware without this route returns 404.
+
+```powershell
+python scripts/device_client.py --url http://192.0.2.20 --provision ./my-provision.json sensors
+```
+
+Use `DeviceClient.sensors()` from Python or poll the same HTTP route from another application. Route observations using `speaker_id`; names and tags are labels. These are measurements at the base, which can differ from room temperature due to nearby electronics, airflow and enclosure heating. Celsius/Fahrenheit conversion does not imply a calibrated room thermometer.
+
+BOX-3 has **no built-in camera**. Its SENSOR base's infrared emitter/receiver and radar are not image sensors. The separate DOCK can accept supported USB cameras with additional USB-host software; this firmware does not expose camera images, radar, infrared, IMU, SD-card or battery telemetry.
 
 ## GET and PATCH /v1/config
 

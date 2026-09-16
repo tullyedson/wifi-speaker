@@ -17,12 +17,18 @@ PlatformIO target: `esp32_s3_box_3`. ESP32-S3, 16 MB quad flash and 16 MB octal 
 | Touch interrupt | 3 |
 | Touch controller | GT911 at 0x5D or 0x14; TT21100 at 0x24 is also probed |
 | BOOT / hardware mute status | 0 / 1 |
+| SENSOR base I2C SDA / SCL | 41 / 40, separate from audio and touch |
+| SENSOR base temperature / humidity | AHT30 at 0x38 |
 
 The two microphone slots use the existing ES7210 16 kHz driver; `mic_channel` selects one slot for mono upload. Both slots have been checked for continuous PCM capture. No beamforming or echo cancellation is implemented. Hardware reset/mute circuitry is left intact; the on-screen mute additionally stops network audio upload.
 
 BOX-3's ILI9341-compatible panel uses a native landscape address space. The driver keeps the 320 x 240 drawing dimensions without the usual portrait-panel row/column swap. Reset is shared with touch and is pulsed once with active-high polarity. Touch coordinates are translated into the centered controls layout. The shared face renderer, phase palette, expression API, backlight timeout and always-listening behavior match the round target. No RGB GPIO is assigned.
 
-The 16 MB partition map and native USB watchdog-reset method match the other S3 targets. First installation replaces the prior partition layout; app-only updates require this project's layout. The dock's sensors, infrared, SD card and battery telemetry are outside this target's support.
+The 16 MB partition map and native USB watchdog-reset method match the other S3 targets. First installation replaces the prior partition layout; app-only updates require this project's layout.
+
+BOX-3 firmware 0.2.1 reads the optional **SENSOR base's AHT30 temperature and humidity sensor** approximately every ten seconds. It uses bounded I2C transactions, polls conversion completion without blocking the main loop, checks the sensor CRC and reports missing/failed/stale measurements explicitly through [GET /v1/sensors](device-api.md#get-v1sensors). It does not use ESP32 die temperature as room temperature. No ambient sensor is present in the small DOCK stand. The base's radar, infrared, SD card and battery telemetry, and the main unit's IMU, remain unsupported.
+
+BOX-3 has no built-in camera. The separate DOCK's USB host connector can support external cameras with appropriate software; camera capture is not implemented in this firmware. See the [AHT30 reference and attribution](third-party/aht30.md).
 
 Sources: [Espressif board reference](https://docs.espressif.com/projects/esp-board-manager/en/latest/references/boards/esp32_s3_box_3.html), [official pin definitions](https://github.com/espressif/esp-bsp/blob/master/bsp/esp-box-3/include/bsp/esp-box-3.h), [display and touch reference](https://github.com/espressif/esp-bsp/blob/master/bsp/esp-box-3/esp-box-3.c), [touch-driver attribution](third-party/box3.md).
 

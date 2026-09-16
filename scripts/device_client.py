@@ -34,7 +34,7 @@ class DeviceClient:
         self.opener = urllib.request.build_opener(NoRedirect)
 
     def request(self, method: str, path: str, body: dict | None = None) -> dict:
-        if path not in ("/v1/device", "/v1/config", "/v1/display", "/v1/led", "/v1/alarms", "/v1/alarms/stop"):
+        if path not in ("/v1/device", "/v1/sensors", "/v1/config", "/v1/display", "/v1/led", "/v1/alarms", "/v1/alarms/stop"):
             raise ValueError("Unknown device endpoint")
         data = None if body is None else json.dumps(body, allow_nan=False).encode("utf-8")
         if data is not None and len(data) > 4096:
@@ -56,6 +56,9 @@ class DeviceClient:
 
     def status(self) -> dict:
         return self.request("GET", "/v1/device")
+
+    def sensors(self) -> dict:
+        return self.request("GET", "/v1/sensors")
 
     def config(self) -> dict:
         return self.request("GET", "/v1/config")
@@ -82,7 +85,7 @@ def main():
     parser.add_argument("--url", required=True)
     parser.add_argument("--token-env", default="SPEAKER_CONTROL_TOKEN", help="Environment variable containing the private control token")
     parser.add_argument("--provision", type=Path, help="Alternatively read control_token (or speaker_token) from a private provisioning file")
-    parser.add_argument("action", choices=("status", "config", "configure", "display", "led", "alarm", "stop-alarm"))
+    parser.add_argument("action", choices=("status", "sensors", "config", "configure", "display", "led", "alarm", "stop-alarm"))
     parser.add_argument("--body", type=Path, help="Private JSON file for write operations")
     args = parser.parse_args()
     token = os.environ.get(args.token_env, "")
@@ -91,6 +94,7 @@ def main():
         token = provision.get("control_token", provision.get("speaker_token", ""))
     client = DeviceClient(args.url, token)
     paths = {"status": ("GET", "/v1/device"), "config": ("GET", "/v1/config"),
+             "sensors": ("GET", "/v1/sensors"),
              "configure": ("PATCH", "/v1/config"), "display": ("POST", "/v1/display"),
              "led": ("POST", "/v1/led"), "alarm": ("POST", "/v1/alarms"),
              "stop-alarm": ("POST", "/v1/alarms/stop")}
