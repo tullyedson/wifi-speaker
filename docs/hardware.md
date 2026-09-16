@@ -1,4 +1,41 @@
-# Muse Luxe hardware support
+# Speaker hardware support
+
+## Espressif ESP32-S3-BOX-3
+
+PlatformIO target: `esp32_s3_box_3`. ESP32-S3, 16 MB quad flash and 16 MB octal PSRAM, with a 2.4-inch 320 x 240 touchscreen. Select this target only for BOX-3, not the original BOX, BOX-Lite or the round SpotPear enclosure.
+
+| Function | GPIO / device |
+| --- | --- |
+| Shared I2C SDA / SCL | 8 / 18 |
+| Speaker codec / microphone ADC | ES8311 at 0x18 / ES7210 at 0x40 |
+| I2S MCLK / BCLK / LRCK | 2 / 17 / 45 |
+| I2S output / input | 15 / 16 |
+| Amplifier enable | 46, active high |
+| LCD clock / MOSI / CS / DC | 7 / 6 / 5 / 4 |
+| Shared LCD/touch reset | 48, active high |
+| Backlight | 47, active high |
+| Touch interrupt | 3 |
+| Touch controller | GT911 at 0x5D or 0x14; TT21100 at 0x24 is also probed |
+| BOOT / hardware mute status | 0 / 1 |
+| SENSOR base I2C SDA / SCL | 41 / 40, separate from audio and touch |
+| SENSOR base temperature / humidity | AHT30 at 0x38 |
+| SENSOR base radar | AT581x at 0x28, active-high output GPIO 21 |
+
+The two microphone slots use the existing ES7210 16 kHz driver; `mic_channel` selects one slot for mono upload. Both slots have been checked for continuous PCM capture. No beamforming or echo cancellation is implemented. Hardware reset/mute circuitry is left intact; the on-screen mute additionally stops network audio upload.
+
+BOX-3's ILI9341-compatible panel uses a native landscape address space. The driver keeps the 320 x 240 drawing dimensions without the usual portrait-panel row/column swap. Reset is shared with touch and is pulsed once with active-high polarity. Touch coordinates are translated into the centered controls layout. The shared face renderer, phase palette, expression API, backlight timeout and always-listening behavior match the round target. No RGB GPIO is assigned.
+
+The 16 MB partition map and native USB watchdog-reset method match the other S3 targets. First installation replaces the prior partition layout; app-only updates require this project's layout.
+
+BOX-3 firmware 0.2.1 reads the optional **SENSOR base's AHT30 temperature and humidity sensor** approximately every ten seconds. It uses bounded I2C transactions, polls conversion completion without blocking the main loop, checks the sensor CRC and reports missing/failed/stale measurements explicitly through [GET /v1/sensors](device-api.md#get-v1sensors). It does not use ESP32 die temperature as room temperature. No ambient sensor is present in the small DOCK stand.
+
+Firmware 0.2.2 adds the **AT581x radar** on the same dock I2C bus. Initialization uses Espressif's default sensitivity and pulse timing, enables RF and waits out the self-test without blocking. It samples GPIO 21 every 50 ms and verifies I2C availability every second. `presence_timeout_ms` optionally controls only the LCD backlight, leaving Wi-Fi audio active. A detected person can wake the face after absence sleep; manual API sleep has priority. The MoreSense module detects motion, not a person's identity or distance. See the [radar reference and attribution](third-party/at581x.md). Infrared, SD-card and battery telemetry, and the main unit's IMU, remain unsupported.
+
+BOX-3 has no built-in camera. The separate DOCK's USB host connector can support external cameras with appropriate software; camera capture is not implemented in this firmware. See the [AHT30 reference and attribution](third-party/aht30.md).
+
+Sources: [Espressif board reference](https://docs.espressif.com/projects/esp-board-manager/en/latest/references/boards/esp32_s3_box_3.html), [official pin definitions](https://github.com/espressif/esp-bsp/blob/master/bsp/esp-box-3/include/bsp/esp-box-3.h), [display and touch reference](https://github.com/espressif/esp-bsp/blob/master/bsp/esp-box-3/esp-box-3.c), [touch-driver attribution](third-party/box3.md).
+
+## Muse Luxe
 
 The supplied firmware targets the original **RASPIAUDIO Muse Luxe** using an ESP32, ES8388 codec and 4 MB flash. PSRAM is not required. Similar product names and later board revisions may use different audio hardware. Check the board before flashing; this firmware is not a universal ESP32 speaker image.
 
@@ -16,7 +53,7 @@ The supplied firmware targets the original **RASPIAUDIO Muse Luxe** using an ESP
 | Middle button | 12 |
 | Volume up / down | 19 / 32 |
 
-The codec and ESP32 share I2S0 clocks at 16 kHz, 16-bit stereo. Firmware extracts one input channel as mono PCM and duplicates mono playback into both output channels. The microphone PGA is +21 dB; codec ALC is off. Internal microphone selection uses ADC control register 12 value `0x4C`, following the manufacturer's implementation. Firmware gain defaults to 1. Use the desktop per-speaker gain control for routine adjustment.
+The codec and ESP32 share I2S0 clocks at 16 kHz, 16-bit stereo. Firmware extracts one input channel as mono PCM and duplicates mono playback into both output channels. The microphone PGA is +21 dB; codec ALC is off. Internal microphone selection uses ADC control register 12 value `0x4C`, following the manufacturer's implementation. Firmware gain defaults to 1. Use device or desktop per-speaker gain controls, noting that firmware gain changes raw input and desktop gain is applied after phrase detection.
 
 ## Memory and transport
 
@@ -26,9 +63,39 @@ The partition map has two app slots of `0x1D0000` bytes each. The second is rese
 
 ## Audio controls and other devices
 
-Firmware 0.1.1 accepts a saved volume from 0 to 100 in the hub's ready message and reports the applied value. Buttons change current volume in five-percent steps. Reconnection applies the saved desktop value again.
+Firmware 0.1.1 accepts a saved volume from 0 to 100 in the hub's ready message and reports the applied value. Buttons change current volume in five-percent steps. Firmware 0.2.0 accepts that value only until volume has been explicitly set on the device. Device controls are then persisted and take precedence.
 
 Other speaker types need their own board driver and provisioning implementation. They can share the [speaker WebSocket protocol](API.md#speaker-websocket): authenticated 16 kHz mono signed little-endian PCM upload, state/mute handling, authenticated WAV download and playback receipts. Implement the ready volume field and volume telemetry to support desktop volume control. Desktop microphone gain works with any compatible PCM source. Validate physical microphone pickup, codec routing, playback and reconnect behavior on each new board.
+
+## SpotPear Ball V2 / 1.28-inch BOX
+
+PlatformIO target: `spotpear_ball_v2`. This is the newer ESP32-S3R8 board with 16 MB flash and optional battery/touch. The manufacturer's product names include `ESP32-S3-1.28inch-AI-legs-Bat-Touch` and `ESP32-S3-LCD-1.28-BOX`. The smaller Ball V1 has different wiring. The similarly named Waveshare ESP32-S3-AUDIO-Board is also a different device.
+
+| Function | GPIO / device |
+| --- | --- |
+| Audio codec | ES8311, I2C address 0x18 |
+| Audio I2C SDA / SCL | 15 / 14 |
+| I2S master / bit / LR clock | 16 / 9 / 45 |
+| I2S output / input | 8 / 10 |
+| NS4150B amplifier enable | 46 |
+| 240 x 240 round display | GC9A01A |
+| Display clock / MOSI / CS / DC / reset | 4 / 2 / 5 / 47 / 38 |
+| Display backlight | 42, active low |
+| Touch controller | CST816 family, I2C address 0x15 |
+| Touch SDA / SCL / reset / interrupt | 11 / 7 / 6 / 12 |
+| BOOT button / RGB indicator | 0 / 48 |
+
+The codec runs in slave mode with 4.096 MHz MCLK and 16 kHz, 16-bit I2S. Input uses the left microphone channel by default. Analog microphone gain is 24 dB, with desktop gain available separately. Playback gain is applied to PCM before duplicating it into both output slots. Echo cancellation and barge-in are not implemented.
+
+The display shows listening, processing, playback, mute, connection and setup states. Touch is optional and probed on startup; the button still works without a touch controller. Touch controls change saved volume, gain and mute. BOOT cycles status and animated-eye screens. The displayed meter uses device RMS with a 10% full-scale range; the desktop meter also accounts for its configured software gain. The SD slot and battery telemetry are not used by this firmware.
+
+The background is black. PWM keeps the active-low backlight at a configurable duty (30% by default). The display stays on by default; an optional timeout or API sleep can turn it off. The first touch wakes the screen without activating a control. Listening continues while the screen is dark. The panel requires color inversion enabled; the SPI-pointer Adafruit constructor takes DC before CS.
+
+The 16 MB layout contains two 3 MB application slots; only app0 is used. Native USB-Serial/JTAG stays enabled for provisioning. Initial installation uses the ESP32-S3 bootloader at offset 0, unlike the Muse ESP32 bootloader at 0x1000. Both applications start at 0x10000. Keep each board's image and flash backup separate.
+
+The helper uses a watchdog reset after SpotPear USB operations because RTS reset can leave this board in the ROM downloader. If using esptool directly, use `--after watchdog-reset`. Native USB input has a 4 KiB buffer to accommodate provisioning messages arriving in USB bursts.
+
+Sources: [SpotPear product](https://spotpear.com/shop/ESP32-S3-N16R8-AI-DeepSeek-XiaoZhi-XiaGe-Qwen-DouBao-1.28-inch-LCD/ESP32-S3-1.28inch-AI-legs-Bat-Touch.html), [manufacturer guide and pin table](https://spotpear.com/wiki/ESP32-S3-N16R8-AI-DeepSeek-XiaoZhi-XiaGe-Qwen-DouBao-1.28-inch-Round-LCD-BOX-TouchScreen.html), [manufacturer schematic](https://cdn.static.spotpear.com/uploads/picture/learn/ESP32/ESP32-S3-LCD-1.28-BOX-THIN/ESP32S3-1.28inch-BOX.pdf), [reference Ball V2 implementation](https://github.com/RealDeco/xiaozhi-esphome/blob/main/devices/Under_Development/Modular/HW/ball_v2_hw.yaml), [ES8311 attribution](third-party/es8311.md).
 
 ## Reference implementations
 
@@ -36,3 +103,28 @@ Other speaker types need their own board driver and provisioning implementation.
 - [Manufacturer board definitions](https://github.com/RASPIAUDIO/Muse_library/blob/main/src/museWrover.h)
 - [ESPHome Muse Luxe configuration](https://github.com/esphome/media-players/blob/main/raspiaudio/raspiaudio-muse-luxe.yaml)
 - [Espressif esptool documentation](https://docs.espressif.com/projects/esptool/en/latest/esp32/)
+
+## Waveshare ESP32-S3-AUDIO-Board
+
+PlatformIO target: `waveshare_s3_audio`. ESP32-S3R8, 16 MB flash, 8 MB PSRAM. This is the audio development board with dual microphones and a seven-pixel RGB ring, not the round SpotPear display enclosure.
+
+| Function | GPIO / device |
+| --- | --- |
+| I2C SDA / SCL | 11 / 10 |
+| Speaker DAC | ES8311 at 0x18 |
+| Microphone ADC | ES7210 at 0x40 |
+| I2S MCLK / BCLK / LRCK | 12 / 13 / 14 |
+| I2S output / input | 16 / 15 |
+| Amplifier enable | TCA9555 at 0x20, expander pin 8, active high |
+| Keys 1 / 2 / 3 | Expander pins 9 / 10 / 11, active low |
+| BOOT | GPIO 0 |
+| Seven WS2812 RGB LEDs | GPIO 38, RGB byte order |
+| RTC | PCF85063 at 0x51, not used by this firmware |
+
+The driver initializes ES8311 output and two ES7210 microphones at 16 kHz with 16-bit stereo I2S. It selects one input slot for the mono stream and duplicates mono output for the DAC. Microphone analog gain is 24 dB, plus configurable firmware PCM gain. ES7210 mode register 0x08 retains its 0x10 two-channel field; clearing that field produces periodically missing samples. Every codec write is checked. The amplifier driver only changes its own expander output and key directions, leaving camera/display expansion pins alone.
+
+MIC3 is wired to an analog speaker-reference network. This driver disables that input and does not claim echo cancellation or microphone beamforming. The RTC, SD card, battery measurement, camera and external LCD connectors are not used. GPIO0 is also multiplexed with optional battery ADC hardware; the supplied headless board configuration uses BOOT.
+
+The partition layout and native USB/watchdog-reset method match the SpotPear target. Flash backups remain device-specific.
+
+Sources: [manufacturer documentation](https://docs.waveshare.com/ESP32-S3-AUDIO-Board), [manufacturer schematic v1.1](https://files.waveshare.com/wiki/ESP32-S3-AUDIO-Board/ESP32-S3-AUDIO-Board_1.1.pdf), [manufacturer Arduino examples](https://docs.waveshare.com/ESP32-S3-AUDIO-Board/Arduino), [ES7210 datasheet](https://files.waveshare.com/wiki/common/ES7210_DS.pdf), [ADC attribution](third-party/es7210.md).

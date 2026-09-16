@@ -16,6 +16,8 @@ Do not commit settings, provisioning files, `.env` files, flash backups, recordi
 
 The speaker transport uses bearer-authenticated HTTP and WebSocket on a trusted LAN, without TLS. Do not forward the hub port to the internet. Keep the app API token separate from each device token. The settings editor is local to the desktop app and is not served over the network. Provision only when needed; the setup access point has a shared bootstrap password and expires after ten minutes.
 
+The device control API runs on port 80 and uses a separate optional control token, falling back to its device audio token for existing provisioning files. It can change microphone routing and trigger sound, so give it only to intended device controllers. Configuration reads omit Wi-Fi credentials and both tokens. Setup writes require a connection through the physically opened setup access point. Direct device controls are documented in [the device API guide](docs/device-api.md).
+
 ## Reporting
 
 For reproducible non-sensitive bugs, open a repository issue with sanitized details. Do not post credentials, recordings, endpoint addresses or private configuration. For a security issue containing sensitive information, use GitHub's private vulnerability reporting option if it is enabled for the repository. If unavailable, first request a private contact channel without disclosing the sensitive details publicly.
