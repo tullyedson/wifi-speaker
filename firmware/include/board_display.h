@@ -3,7 +3,7 @@
 #include <ArduinoJson.h>
 
 namespace board_display {
-enum class Action { none, mute, quieter, louder, gain_down, gain_up };
+enum class Action { none, mute, quieter, louder, gain_down, gain_up, cycle };
 void begin();
 void wake();
 void sleep();

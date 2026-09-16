@@ -51,3 +51,4 @@ jobs:
           ./scripts/firmware.ps1 -Action Build -Board muse_luxe
           ./scripts/firmware.ps1 -Action Build -Board spotpear_ball_v2
           ./scripts/firmware.ps1 -Action Build -Board waveshare_s3_audio
+          ./scripts/firmware.ps1 -Action Build -Board esp32_s3_box_3

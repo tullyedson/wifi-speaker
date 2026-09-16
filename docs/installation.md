@@ -28,7 +28,7 @@ It finds the portable app relative to the repository. If you moved it, pass `-Ex
 
 ## USB and firmware
 
-The original Muse Luxe ES8388, SpotPear Ball V2 / 1.28-inch BOX ES8311 and Waveshare ESP32-S3-AUDIO-Board ES8311/ES7210 boards are supported. See [hardware.md](hardware.md) before flashing. Use a USB data cable, turn on the device and locate its COM port in Device Manager. Muse Luxe uses a Silicon Labs CP210x USB bridge; SpotPear uses the ESP32-S3 native USB JTAG/serial interface. Close any serial terminal using that port.
+The original Muse Luxe ES8388, SpotPear Ball V2 / 1.28-inch BOX ES8311, Waveshare ESP32-S3-AUDIO-Board ES8311/ES7210 and Espressif ESP32-S3-BOX-3 are supported. See [hardware.md](hardware.md) before flashing. Use a USB data cable, turn on the device and locate its COM port in Device Manager. Muse Luxe uses a Silicon Labs CP210x USB bridge; the S3 targets use the native USB JTAG/serial interface. Close any serial terminal using that port.
 
 From the repository directory, replacing COM7 with the actual port:
 
@@ -37,7 +37,7 @@ From the repository directory, replacing COM7 with the actual port:
 .\scripts\firmware.ps1 -Action Flash -Port COM7
 ```
 
-These commands default to Muse Luxe. Add `-Board spotpear_ball_v2` for SpotPear or `-Board waveshare_s3_audio` for the Waveshare audio board to every firmware command. **Backup** reads all flash: 4 MB for Muse Luxe or 16 MB for either ESP32-S3 target. **Flash** builds the selected factory image, creates another complete backup, writes the bootloader, partitions and app at offset 0, and independently verifies the written image. It replaces existing firmware and provisioning. Never interrupt power during writing.
+These commands default to Muse Luxe. Add `-Board spotpear_ball_v2` for SpotPear, `-Board waveshare_s3_audio` for Waveshare or `-Board esp32_s3_box_3` for Espressif BOX-3 to every firmware command. **Backup** reads all flash: 4 MB for Muse Luxe or 16 MB for any supported ESP32-S3 target. **Flash** builds the selected factory image, creates another complete backup, writes the bootloader, partitions and app at offset 0, and independently verifies the written image. It replaces existing firmware and provisioning. Never interrupt power during writing.
 
 For later updates using this project's partition layout:
 
@@ -53,7 +53,7 @@ Private flash backups live under `backups/` and may contain credentials. Keep th
 
 Add and save a speaker in the desktop first. Its setup dialog contains the hub URL, permanent ID and device token. After flashing, join `Speaker-setup-…` (password `speaker-setup`) and open `http://192.168.4.1`. Enter your 2.4 GHz Wi-Fi credentials and the saved hub/device values. The device restarts after saving.
 
-The setup access point closes after ten minutes. Hold the Muse Luxe middle button or SpotPear BOOT button for five seconds to reopen it. Provision near the device on a trusted network, since setup has a shared bootstrap password.
+The setup access point closes after ten minutes. Hold the Muse Luxe middle button or an S3 board's BOOT button for five seconds to reopen it. Provision near the device on a trusted network, since setup has a shared bootstrap password.
 
 Alternatively, use **Provision over USB** in the desktop setup dialog. Enter Wi-Fi credentials, copy the JSON into a private `my-provision.json` file, and run:
 
@@ -85,7 +85,7 @@ Muse/Waveshare buttons mute, adjust volume and reopen setup. Round BOOT cycles s
 | Coral red | Audio initialization failure |
 | Blinking coral red | Alarm |
 
-The SpotPear LCD uses a black background, adjustable backlight and always-on eyes by default. BOOT switches to a status page with mute, volume and gain controls. The [device API](device-api.md) changes expressions, screen state, brightness and optional timeout. First touch on a dark display only wakes it. Microphone capture continues while the display is dark. The BOOT button works without touch support.
+The SpotPear and BOX-3 LCDs use a black background, adjustable backlight and always-on eyes by default. BOOT switches to a status page with mute, volume and gain controls. The [device API](device-api.md) changes expressions, screen state, brightness and optional timeout. First touch on a dark display only wakes it. Microphone capture continues while the display is dark. The BOOT button works without touch support. BOX-3 shows phase colors in its eyes and has no programmable RGB indicator in this target.
 
 If the mic is silent, check USB startup diagnostics (`audio=ready`), device mute and channel selection. If you see phrases but no response, check wake names, the endpoint URL, model ID, bearer token and the device's error status. Long transcription times depend on model size, CPU and concurrent room activity. Use [explicit microphone diagnostics](API.md#explicit-microphone-sample) when needed. Diagnostics can contain private speech; keep their output local.
 

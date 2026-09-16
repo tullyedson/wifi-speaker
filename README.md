@@ -4,11 +4,11 @@ Turn a supported ESP32 speaker into a voice interface for an **OpenAI-compatible
 
 Choose a wake name, connect multiple speakers, give each a name and room tags, and save independent microphone gain and playback volume. Requests carry the originating speaker's identity so replies return to the right room.
 
-Firmware also provides a direct device API for persistent audio settings, RGB effects and local alarms. The round display has animated cartoon eyes whose expressions can be selected by your AI. The Rust desktop app remains a reference audio hub that you can replace with your own compatible service.
+Firmware also provides a direct device API for persistent audio settings, RGB effects and local alarms. Display boards have animated cartoon eyes whose expressions can be selected by your AI. The Rust desktop app remains a reference audio hub that you can replace with your own compatible service.
 
 This is a source release. Build the portable desktop app and firmware as described below. No accounts, LLM service, deployment addresses or credentials are included.
 
-[Requirements](#requirements) · [Build](#build-on-windows) · [Hub settings](#set-up-the-hub) · [Muse setup](#install-a-muse-luxe) · [SpotPear setup](#install-a-spotpear-ball-v2) · [Waveshare setup](#install-a-waveshare-audio-board) · [Device controls](#control-a-device-directly) · [First conversation](#check-your-first-conversation) · [Application API](#connect-your-application) · [Troubleshooting](#troubleshooting) · [Contributing](#development-and-contributions)
+[Requirements](#requirements) · [Build](#build-on-windows) · [Hub settings](#set-up-the-hub) · [Muse setup](#install-a-muse-luxe) · [SpotPear setup](#install-a-spotpear-ball-v2) · [Waveshare setup](#install-a-waveshare-audio-board) · [BOX-3 setup](#install-an-esp32-s3-box-3) · [Device controls](#control-a-device-directly) · [First conversation](#check-your-first-conversation) · [Application API](#connect-your-application) · [Troubleshooting](#troubleshooting) · [Contributing](#development-and-contributions)
 
 ## How it works
 
@@ -28,7 +28,7 @@ The hub buffers and transcribes detected phrases before checking for a whole-wor
 | Component | What you need |
 | --- | --- |
 | Desktop | Windows 10/11 x64, Microsoft WebView2, and an installed Windows speech voice |
-| Speaker | Original **RASPIAUDIO Muse Luxe** (ESP32 / ES8388 / 4 MB), **SpotPear Ball V2 / 1.28-inch BOX** (ESP32-S3 / ES8311 / 16 MB, optional touch and battery), or **Waveshare ESP32-S3-AUDIO-Board** (ES8311 + ES7210, dual microphones and seven RGB LEDs) |
+| Speaker | Original **RASPIAUDIO Muse Luxe** (ESP32 / ES8388 / 4 MB), **SpotPear Ball V2 / 1.28-inch BOX** (ESP32-S3 / ES8311 / 16 MB, optional touch and battery), **Waveshare ESP32-S3-AUDIO-Board** (ES8311 + ES7210, dual microphones and seven RGB LEDs), or **Espressif ESP32-S3-BOX-3** (dual microphones, speaker and 320 x 240 touchscreen) |
 | Network | 2.4 GHz Wi-Fi for the speaker, with network access to the Windows PC; the PC may use Ethernet |
 | Reply backend | An OpenAI-compatible chat-completions endpoint and model, or an app implementing the [webhook API](docs/API.md) |
 | Initial installation | USB data cable and the device's COM port in Windows Device Manager |
@@ -60,6 +60,9 @@ Install Git, Python 3.11 or newer, the Rust stable **MSVC** toolchain, and Visua
 
 # For a Waveshare audio board, select its own audio driver.
 .\scripts\firmware.ps1 -Action Build -Board waveshare_s3_audio
+
+# For an Espressif BOX-3 with a rectangular touchscreen.
+.\scripts\firmware.ps1 -Action Build -Board esp32_s3_box_3
 
 # Assemble the portable desktop folder.
 .\scripts\package.ps1
@@ -170,9 +173,23 @@ Replace COM7 with its actual native USB serial port. The helper preserves all 16
 
 The two microphone inputs are initialized, and `mic_channel` selects one for the mono stream. The separate speaker-reference ADC input is reserved for future echo cancellation. This version does not implement beamforming or echo cancellation. Use the [recording diagnostics](docs/API.md#explicit-microphone-sample) to select and tune the microphone in your room.
 
+## Install an ESP32-S3-BOX-3
+
+Select the **Espressif ESP32-S3-BOX-3**, with 16 MB flash, 16 MB PSRAM, ES8311 speaker output and ES7210 microphone input. This target is separate from the original ESP32-S3-BOX and BOX-Lite.
+
+```powershell
+.\scripts\firmware.ps1 -Action Flash -Board esp32_s3_box_3 -Port COM7
+```
+
+Replace COM7 with the BOX-3's USB serial port. First installation backs up all 16 MB and replaces the existing firmware and provisioning, including ESPHome. Keep that backup private. Add a separate speaker in the desktop app, then supply its ID/token, Wi-Fi and hub address through the setup portal or [USB provisioning](docs/installation.md#provisioning). For later updates, use `-Action Update -Board esp32_s3_box_3 -Port COM7` to preserve saved settings. Images are `esp32-s3-box-3-factory.bin` and `esp32-s3-box-3-app.bin`.
+
+The black screen shows the same blinking, wandering eyes and phase colors as the round speaker, centered on the wider display. A short BOOT press cycles between the face and the volume/microphone-gain controls. The capacitive front button also cycles screens when supported by the touch controller. Hold BOOT for five seconds to reopen setup; the reset button retains its hardware function. Touch the eyes for a happy reaction, or tap a dark screen once to wake it.
+
+The screen stays on by default. Remote expressions, display sleep/wake, persistent configuration and alarms use the [device API](docs/device-api.md). Microphone streaming continues with the backlight off. BOX-3 has no programmable RGB indicator in this target, so phase colors appear in the eyes and `/v1/led` returns 409. The two microphone channels can be selected individually; the network stream is mono, without beamforming or echo cancellation. See [hardware details and pinout](docs/hardware.md#espressif-esp32-s3-box-3).
+
 ## Control a device directly
 
-Every board runs an authenticated HTTP API on port 80, independent of the Windows app. The round device adds display controls. Use its LAN address or `<speaker_id>.local` where mDNS works.
+Every board runs an authenticated HTTP API on port 80, independent of the Windows app. SpotPear and BOX-3 add display controls. Use its LAN address or `<speaker_id>.local` where mDNS works.
 
 | Device endpoint | Purpose |
 | --- | --- |
@@ -252,7 +269,7 @@ Fork the project, make a focused branch and open a PR. The [contribution guide](
 | --- | --- |
 | `crates/hub` | Rust audio processing, speech, HTTP/WebSocket API and CLI |
 | `desktop`, `ui` | Tauri tray app and bundled settings interface |
-| `firmware` | Three board drivers, animated display, device API, alarms, Wi-Fi and audio transport |
+| `firmware` | Four board targets, animated displays, device API, alarms, Wi-Fi and audio transport |
 | `scripts` | Build, package, firmware, simulator and diagnostic helpers |
 | `docs` | Protocol, installation, hardware and third-party notices |
 

@@ -9,14 +9,14 @@ namespace board_audio {
 namespace {
 constexpr i2s_port_t port = I2S_NUM_0;
 bool write_register(uint8_t reg, uint8_t value) {
-#if defined(BOARD_SPOTPEAR_BALL_V2) || defined(BOARD_WAVESHARE_S3_AUDIO)
+#if defined(BOARD_SPOTPEAR_BALL_V2) || defined(BOARD_WAVESHARE_S3_AUDIO) || defined(BOARD_ESP32_S3_BOX_3)
     Wire.beginTransmission(0x18); Wire.write(reg); Wire.write(value);
 #else
     Wire.beginTransmission(0x10); Wire.write(reg); Wire.write(value);
 #endif
     return Wire.endTransmission() == 0;
 }
-#if defined(BOARD_WAVESHARE_S3_AUDIO)
+#if defined(BOARD_WAVESHARE_S3_AUDIO) || defined(BOARD_ESP32_S3_BOX_3)
 bool begin_microphones() {
     // ES7210: MIC1 and MIC2 in ordinary stereo I2S, 16 bits, 16 kHz.
     // MIC3 is the board's analog speaker reference and is deliberately disabled.
@@ -73,7 +73,7 @@ bool begin() {
     pins.data_out_num = board_config::audio_out; pins.data_in_num = board_config::audio_in;
     if (i2s_set_pin(port, &pins) != ESP_OK) { i2s_driver_uninstall(port); return false; }
     i2s_zero_dma_buffer(port);
-#if defined(BOARD_SPOTPEAR_BALL_V2) || defined(BOARD_WAVESHARE_S3_AUDIO)
+#if defined(BOARD_SPOTPEAR_BALL_V2) || defined(BOARD_WAVESHARE_S3_AUDIO) || defined(BOARD_ESP32_S3_BOX_3)
     // ES8311 slave, analog microphone, 16-bit I2S, MCLK=4.096 MHz / 16 kHz.
     // Clock coefficients and power sequence follow Espressif's Apache-2.0
     // esp_codec_dev ES8311 driver. See docs/third-party/es8311.md.
@@ -94,7 +94,7 @@ bool begin() {
         if (!write_register(item[0], item[1])) { i2s_driver_uninstall(port); return false; }
     }
 #endif
-#if defined(BOARD_WAVESHARE_S3_AUDIO)
+#if defined(BOARD_WAVESHARE_S3_AUDIO) || defined(BOARD_ESP32_S3_BOX_3)
     if (!begin_microphones()) { i2s_driver_uninstall(port); return false; }
 #endif
     return board_controls::amplifier(true);

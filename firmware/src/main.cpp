@@ -282,6 +282,7 @@ void display_api() {
 }
 void led_api() {
     JsonDocument doc; if (!api_body(doc, {"color","effect","brightness","duration_ms"})) return;
+    if (!board_config::led_count) { api_error(409, "This board has no RGB LED"); return; }
     const String color = doc["color"] | "#77EEDD", effect = doc["effect"] | "solid";
     if ((!doc["color"].isNull() && !doc["color"].is<const char*>()) || color.length() != 7 || color[0] != '#'
         || (!doc["effect"].isNull() && !doc["effect"].is<const char*>()) || (effect != "status" && effect != "solid" && effect != "breathe" && effect != "blink")
@@ -386,7 +387,7 @@ void setup() {
     if (board_config::volume_up >= 0) pinMode(board_config::volume_up, INPUT_PULLUP);
     if (board_config::volume_down >= 0) pinMode(board_config::volume_down, INPUT_PULLUP);
     board_display::begin();
-    led.begin(); led.setBrightness(255); led.fill(led.Color(4, 6, 8)); led.show();
+    if (board_config::led_count) { led.begin(); led.setBrightness(255); led.fill(led.Color(4, 6, 8)); led.show(); }
     frames = xQueueCreate(6, sizeof(Frame)); jobs = xQueueCreate(1, sizeof(PlayJob)); results = xQueueCreate(4, sizeof(PlaybackEvent)); alarm_jobs = xQueueCreate(1, sizeof(AlarmJob));
     JsonDocument saved;
     configured = !deserializeJson(saved, preferences.getString("config", "{}")) && read_config(saved, config);
@@ -411,6 +412,10 @@ void loop() {
     check_serial();
     if (reboot_at && static_cast<int32_t>(millis() - reboot_at) >= 0) ESP.restart();
     const auto touch_action = board_display::poll();
+    if (touch_action == board_display::Action::cycle) {
+        if (alarm_active) stop_alarm();
+        else { config.default_screen = board_display::cycle(); controls_changed = millis(); }
+    }
     const bool button = digitalRead(board_config::button) == LOW;
     if (button != previous_button && millis() - last_button_change > 40) {
         last_button_change = millis(); previous_button = button;
@@ -472,7 +477,7 @@ void loop() {
     }
     color = led.Color(((color >> 16) & 255) * intensity, ((color >> 8) & 255) * intensity, (color & 255) * intensity);
     static uint32_t previous_color = 0xFFFFFFFF;
-    if (color != previous_color) { led.fill(color); led.show(); previous_color = color; }
+    if (board_config::led_count && color != previous_color) { led.fill(color); led.show(); previous_color = color; }
     board_display::update(display_state, volume.load(), microphone_gain.load(), muted || playing || hub_paused ? 0 : microphone_level.load(), setup_mode ? "192.168.4.1" : WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : "Wi-Fi offline");
     delay(1);
 }

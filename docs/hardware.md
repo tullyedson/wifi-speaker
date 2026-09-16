@@ -1,5 +1,31 @@
 # Speaker hardware support
 
+## Espressif ESP32-S3-BOX-3
+
+PlatformIO target: `esp32_s3_box_3`. ESP32-S3, 16 MB quad flash and 16 MB octal PSRAM, with a 2.4-inch 320 x 240 touchscreen. Select this target only for BOX-3, not the original BOX, BOX-Lite or the round SpotPear enclosure.
+
+| Function | GPIO / device |
+| --- | --- |
+| Shared I2C SDA / SCL | 8 / 18 |
+| Speaker codec / microphone ADC | ES8311 at 0x18 / ES7210 at 0x40 |
+| I2S MCLK / BCLK / LRCK | 2 / 17 / 45 |
+| I2S output / input | 15 / 16 |
+| Amplifier enable | 46, active high |
+| LCD clock / MOSI / CS / DC | 7 / 6 / 5 / 4 |
+| Shared LCD/touch reset | 48, active high |
+| Backlight | 47, active high |
+| Touch interrupt | 3 |
+| Touch controller | GT911 at 0x5D or 0x14; TT21100 at 0x24 is also probed |
+| BOOT / hardware mute status | 0 / 1 |
+
+The two microphone slots use the existing ES7210 16 kHz driver; `mic_channel` selects one slot for mono upload. Both slots have been checked for continuous PCM capture. No beamforming or echo cancellation is implemented. Hardware reset/mute circuitry is left intact; the on-screen mute additionally stops network audio upload.
+
+BOX-3's ILI9341-compatible panel uses a native landscape address space. The driver keeps the 320 x 240 drawing dimensions without the usual portrait-panel row/column swap. Reset is shared with touch and is pulsed once with active-high polarity. Touch coordinates are translated into the centered controls layout. The shared face renderer, phase palette, expression API, backlight timeout and always-listening behavior match the round target. No RGB GPIO is assigned.
+
+The 16 MB partition map and native USB watchdog-reset method match the other S3 targets. First installation replaces the prior partition layout; app-only updates require this project's layout. The dock's sensors, infrared, SD card and battery telemetry are outside this target's support.
+
+Sources: [Espressif board reference](https://docs.espressif.com/projects/esp-board-manager/en/latest/references/boards/esp32_s3_box_3.html), [official pin definitions](https://github.com/espressif/esp-bsp/blob/master/bsp/esp-box-3/include/bsp/esp-box-3.h), [display and touch reference](https://github.com/espressif/esp-bsp/blob/master/bsp/esp-box-3/esp-box-3.c), [touch-driver attribution](third-party/box3.md).
+
 ## Muse Luxe
 
 The supplied firmware targets the original **RASPIAUDIO Muse Luxe** using an ESP32, ES8388 codec and 4 MB flash. PSRAM is not required. Similar product names and later board revisions may use different audio hardware. Check the board before flashing; this firmware is not a universal ESP32 speaker image.

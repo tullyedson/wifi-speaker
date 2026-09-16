@@ -36,7 +36,7 @@ Keep provisioning, tokens and command files containing private settings out of G
 
 Returns the permanent `speaker_id`, local `name` and `tags`, firmware version, `audio_ready`, `hub_connected`, microphone mute/gain/level/channel, current playback volume, `audio_uploading`, uptime, free heap and `settings_pending`. Nested objects describe the display, RGB indicator and current alarm. Microphone level is normalized RMS, not a percentage of recognition confidence.
 
-`display.available` is false on headless boards. A round display additionally reports `awake`, `screen`, `expression`, `brightness`, `timeout_ms`, `look_x`, `look_y` and touch availability. The LED object reports the requested effect/color/brightness and physical pixel count; operational indicators may override it. Alarm states are `idle`, `queued`, `playing`, `finished`, `cancelled` and `error`. Audio readiness and playback completion are software observations; listen to the physical speaker to judge sound quality.
+`display.available` is false on headless boards. A display additionally reports `awake`, `screen`, `expression`, `brightness`, `timeout_ms`, `look_x`, `look_y`, `width`, `height` and touch availability. The LED object reports the requested effect/color/brightness and physical pixel count; BOX-3 reports zero pixels. Operational indicators may override cosmetic LED commands. Alarm states are `idle`, `queued`, `playing`, `finished`, `cancelled` and `error`. Audio readiness and playback completion are software observations; listen to the physical speaker to judge sound quality.
 
 ## GET and PATCH /v1/config
 
@@ -77,7 +77,7 @@ This destination is an audio hub, not a text-only LLM URL. The receiver performs
 
 ## POST /v1/display
 
-Supported on the round SpotPear target. Headless boards return 409.
+Supported on SpotPear Ball V2 and ESP32-S3-BOX-3. Headless boards return 409.
 
 ```json
 {"screen":"eyes","awake":true,"expression":"curious","look_x":0.6,"look_y":-0.2,"duration_ms":10000}
@@ -93,11 +93,13 @@ Gaze coordinates are finite numbers from -1 to 1, with positive x looking right 
 
 `{"awake":false}` turns off the backlight without stopping Wi-Fi or microphone capture. This manual sleep lasts until a touch, physical button, explicit wake command or alarm. An automatic idle timeout can also darken the display; reply processing wakes it unless it was manually put to sleep. This is display sleep, not ESP32 deep sleep. A device switched physically off cannot listen or receive a wake request.
 
-The round BOOT button cycles the eyes/status screens and saves the choice. It leaves the separate physical power button alone. Holding BOOT for five seconds still opens setup. Touching the eyes gives a brief happy reaction. The status screen has microphone mute, playback volume and input-gain controls. First touch on a dark screen only wakes it.
+The display boards' BOOT button cycles the eyes/status screens and saves the choice. BOX-3's front capacitive button can also cycle screens. Separate hardware power/reset buttons retain their functions. Holding BOOT for five seconds still opens setup. Touching the eyes gives a brief happy reaction. The status screen has microphone mute, playback volume and input-gain controls. First touch on a dark screen only wakes it.
 
 The LCD uses an LED backlight, not OLED pixels. Always-on animated eyes are the default; brightness and timeout remain adjustable. No panel is promised to be immune to image retention.
 
 ## POST /v1/led
+
+Boards without a programmable RGB indicator, including BOX-3, return 409. Display phase colors remain available independently.
 
 ```json
 {"color":"#FFB0CC","effect":"breathe","brightness":25,"duration_ms":15000}

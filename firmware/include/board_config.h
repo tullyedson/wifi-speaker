@@ -18,6 +18,14 @@ constexpr int led_count = 7;
 // Manufacturer factory driver selects LED_STRIP_COLOR_COMPONENT_FMT_RGB.
 constexpr bool led_rgb_order = true;
 constexpr bool use_apll = false;
+#elif defined(BOARD_ESP32_S3_BOX_3)
+constexpr const char* firmware = "esp32-s3-box-3/0.2.0";
+constexpr int sda = 8, scl = 18, mclk = 2, bclk = 17, lrclk = 45;
+constexpr int audio_out = 15, audio_in = 16, amplifier = 46;
+constexpr int led = -1, button = 0, volume_up = -1, volume_down = -1;
+constexpr int led_count = 0;
+constexpr bool led_rgb_order = false;
+constexpr bool use_apll = false;
 #elif defined(BOARD_MUSE_LUXE)
 constexpr const char* firmware = "muse-luxe/0.2.1";
 constexpr int sda = 18, scl = 23, mclk = 0, bclk = 5, lrclk = 25;
