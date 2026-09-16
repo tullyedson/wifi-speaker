@@ -13,6 +13,7 @@ struct Config {
     int volume = -1; // Until a local setting is saved, accept the hub's initial volume.
     bool muted = false;
     uint32_t screen_timeout_ms = 0; // Display stays on; this never controls audio capture.
+    uint32_t presence_timeout_ms = 0; // Opt in to radar-based backlight control when available.
 };
 bool valid_id(const String& value);
 bool parse_hub(const String& url, String& host, uint16_t& port);

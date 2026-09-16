@@ -19,7 +19,7 @@ constexpr int led_count = 7;
 constexpr bool led_rgb_order = true;
 constexpr bool use_apll = false;
 #elif defined(BOARD_ESP32_S3_BOX_3)
-constexpr const char* firmware = "esp32-s3-box-3/0.2.1";
+constexpr const char* firmware = "esp32-s3-box-3/0.2.2";
 constexpr int sda = 8, scl = 18, mclk = 2, bclk = 17, lrclk = 45;
 constexpr int audio_out = 15, audio_in = 16, amplifier = 46;
 constexpr int led = -1, button = 0, volume_up = -1, volume_down = -1;

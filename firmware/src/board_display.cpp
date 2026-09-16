@@ -1,5 +1,6 @@
 #include "board_display.h"
 #include "status_colors.h"
+#include "display_power.h"
 #include <algorithm>
 #include <cmath>
 
@@ -19,11 +20,12 @@ constexpr uint16_t background = 0x0000, foreground = 0xDF7C, accent = 0x6F9B;
 using display_panel::display;
 constexpr int left = display_panel::left;
 GFXcanvas16 face(240, 166);
-bool touch_ready = false, touch_down = false, asleep = false, manual_sleep = false;
+bool touch_ready = false, touch_down = false;
+DisplayPower power;
 bool home_down = false;
 bool eyes = true, fixed_gaze = false, dirty = true;
 uint8_t brightness = 30;
-uint32_t timeout_ms = 0, last_activity = 0, last_poll = 0, last_draw = 0;
+uint32_t last_poll = 0, last_draw = 0;
 uint32_t expression_until = 0, next_look = 0, blink_started = 0, next_blink = 0;
 float look_x = 0, look_y = 0, target_x = 0, target_y = 0;
 String mood = "neutral", old_state, old_address;
@@ -111,12 +113,13 @@ void begin() {
     display.setTextWrap(false); display.fillScreen(background); wake();
 }
 void wake() {
-    last_activity = millis(); manual_sleep = false; if (asleep) dirty = true;
-    asleep = false; display_panel::backlight(brightness);
+    if (!power.awake()) dirty = true;
+    power.wake(millis()); display_panel::backlight(brightness);
 }
-void sleep() { manual_sleep = true; asleep = true; display_panel::backlight(0); }
-void configure(uint8_t value, uint32_t timeout, const String& screen) {
-    brightness = value; timeout_ms = timeout; if (!asleep) display_panel::backlight(brightness); select(screen);
+void sleep() { power.sleep(); display_panel::backlight(0); }
+void configure(uint8_t value, uint32_t timeout, const String& screen, uint32_t presence_timeout) {
+    brightness = value; power.configure(millis(), timeout, presence_timeout);
+    if (power.awake()) display_panel::backlight(brightness); select(screen);
 }
 void select(const String& screen) { const bool value = screen == "eyes"; if (value != eyes) { eyes = value; dirty = true; } }
 String cycle() { select(eyes ? "status" : "eyes"); wake(); return eyes ? "eyes" : "status"; }
@@ -126,8 +129,10 @@ void expression(const String& value, uint32_t duration, bool fixed, float x, flo
 }
 void blink() { blink_started = millis() ? millis() : 1; }
 void status(JsonObject object) {
-    object["available"] = true; object["awake"] = !asleep; object["screen"] = eyes ? "eyes" : "status";
-    object["expression"] = mood; object["brightness"] = brightness; object["timeout_ms"] = timeout_ms;
+    object["available"] = true; object["awake"] = power.awake(); object["screen"] = eyes ? "eyes" : "status";
+    object["expression"] = mood; object["brightness"] = brightness; object["timeout_ms"] = power.idle_timeout();
+    object["presence_timeout_ms"] = power.presence_timeout(); object["presence_control_active"] = power.presence_active();
+    object["sleep_reason"] = power.sleep_reason();
     object["look_x"] = look_x; object["look_y"] = look_y; object["touch"] = touch_ready;
     object["width"] = display_panel::width; object["height"] = 240;
 }
@@ -136,9 +141,9 @@ Action poll() {
     last_poll = millis(); display_panel::Touch touch; if (!display_panel::read_touch(touch)) return Action::none;
     const bool home_tapped = touch.home && !home_down; home_down = touch.home;
     const bool tapped = touch.pressed && !touch_down; touch_down = touch.pressed;
-    if (home_tapped) { if (asleep) { wake(); return Action::none; } return Action::cycle; }
+    if (home_tapped) { if (!power.awake()) { wake(); return Action::none; } return Action::cycle; }
     if (!tapped) return Action::none;
-    if (asleep) { wake(); return Action::none; }
+    if (!power.awake()) { wake(); return Action::none; }
     wake(); if (eyes) { expression("happy", 1800, false, 0, 0); return Action::none; }
     const int x = touch.x - left, y = touch.y;
     if (x < 0 || x >= 240 || y < 0 || y >= 240) return Action::none;
@@ -147,13 +152,15 @@ Action poll() {
     if (y >= 90 && y <= 119 && x >= 61 && x <= 179) return Action::mute;
     return Action::none;
 }
-void update(const String& state, uint8_t volume, float mic_gain, uint16_t level, const String& address) {
+void update(const String& state, uint8_t volume, float mic_gain, uint16_t level, const String& address, bool presence_available, bool presence_detected) {
     const uint32_t now = millis();
     // Expiry also runs while another screen is selected or the backlight is off.
     if (expression_until && static_cast<int32_t>(now - expression_until) >= 0) { mood = "neutral"; fixed_gaze = false; expression_until = 0; }
-    if (!manual_sleep && (state == "Speaking" || state == "Thinking" || state == "Preparing" || state == "Alarm")) wake();
-    if (!asleep && timeout_ms && now - last_activity >= timeout_ms) { asleep = true; display_panel::backlight(0); }
-    if (asleep || now - last_draw < (eyes ? 50u : 100u)) return; last_draw = now;
+    const bool was_awake = power.awake();
+    const bool busy = state == "Speaking" || state == "Thinking" || state == "Recognizing" || state == "Preparing" || state == "Alarm" || state == "Wi-Fi setup";
+    power.update(now, busy, presence_available, presence_detected);
+    if (power.awake() != was_awake) { dirty = true; display_panel::backlight(power.awake() ? brightness : 0); }
+    if (!power.awake() || now - last_draw < (eyes ? 50u : 100u)) return; last_draw = now;
     if (dirty || state != old_state || address != old_address || volume != old_volume || mic_gain != old_gain) {
         old_state = state; old_address = address; old_volume = volume; old_gain = mic_gain; old_level = -1; dirty = false;
         display.fillScreen(background);
@@ -180,13 +187,13 @@ bool available() { return false; }
 void begin() {}
 void wake() {}
 void sleep() {}
-void configure(uint8_t, uint32_t, const String&) {}
+void configure(uint8_t, uint32_t, const String&, uint32_t) {}
 String cycle() { return "status"; }
 void expression(const String&, uint32_t, bool, float, float) {}
 void blink() {}
 void select(const String&) {}
 void status(JsonObject object) { object["available"] = false; object["awake"] = false; }
 Action poll() { return Action::none; }
-void update(const String&, uint8_t, float, uint16_t, const String&) {}
+void update(const String&, uint8_t, float, uint16_t, const String&, bool, bool) {}
 }
 #endif

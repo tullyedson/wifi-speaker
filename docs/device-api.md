@@ -37,7 +37,7 @@ Keep provisioning, tokens and command files containing private settings out of G
 
 Returns the permanent `speaker_id`, local `name` and `tags`, firmware version, `audio_ready`, `hub_connected`, microphone mute/gain/level/channel, current playback volume, `audio_uploading`, uptime, free heap and `settings_pending`. Nested objects describe the display, RGB indicator, current alarm and sensors. Microphone level is normalized RMS, not a percentage of recognition confidence.
 
-`display.available` is false on headless boards. A display additionally reports `awake`, `screen`, `expression`, `brightness`, `timeout_ms`, `look_x`, `look_y`, `width`, `height` and touch availability. The LED object reports the requested effect/color/brightness and physical pixel count; BOX-3 reports zero pixels. Operational indicators may override cosmetic LED commands. Alarm states are `idle`, `queued`, `playing`, `finished`, `cancelled` and `error`. Audio readiness and playback completion are software observations; listen to the physical speaker to judge sound quality.
+`display.available` is false on headless boards. A display additionally reports `awake`, `screen`, `expression`, `brightness`, `timeout_ms`, `presence_timeout_ms`, `presence_control_active`, `sleep_reason`, `look_x`, `look_y`, `width`, `height` and touch availability. `sleep_reason` is `null` while awake, or `manual`, `idle` or `absence`. The LED object reports the requested effect/color/brightness and physical pixel count; BOX-3 reports zero pixels. Operational indicators may override cosmetic LED commands. Alarm states are `idle`, `queued`, `playing`, `finished`, `cancelled` and `error`. Audio readiness and playback completion are software observations; listen to the physical speaker to judge sound quality.
 
 ## GET /v1/sensors
 
@@ -81,7 +81,40 @@ python scripts/device_client.py --url http://192.0.2.20 --provision ./my-provisi
 
 Use `DeviceClient.sensors()` from Python or poll the same HTTP route from another application. Route observations using `speaker_id`; names and tags are labels. These are measurements at the base, which can differ from room temperature due to nearby electronics, airflow and enclosure heating. Celsius/Fahrenheit conversion does not imply a calibrated room thermometer.
 
-BOX-3 has **no built-in camera**. Its SENSOR base's infrared emitter/receiver and radar are not image sensors. The separate DOCK can accept supported USB cameras with additional USB-host software; this firmware does not expose camera images, radar, infrared, IMU, SD-card or battery telemetry.
+### Radar presence and automatic screen control
+
+BOX-3 firmware **0.2.2** adds `sensors.presence` alongside temperature/humidity. The SENSOR base's AT581x radar supplies an active-high motion/presence indication. It does not identify people or measure distance, and someone sitting completely still may stop producing detections.
+
+```json
+{
+  "supported": true,
+  "sensor": "at581x",
+  "available": true,
+  "state": "ready",
+  "detected": true,
+  "sampled_at_uptime_ms": 14950,
+  "sample_age_ms": 50,
+  "last_detected_uptime_ms": 14950,
+  "last_detection_age_ms": 50,
+  "poll_interval_ms": 50
+}
+```
+
+Poll `/v1/sensors` to retrieve this object. `detected` is the sampled radar output, including its short hardware hold, not the screen's longer absence timer. The last-detection timestamp records the most recent positive sample; it is null until the first detection. Radar initialization and its two-second self-test run without blocking the main loop. The output is sampled every 50 ms, and the module is checked over I2C every second. After a failed check it retries in five seconds. States are `starting`, `initializing`, `warming_up`, `ready`, `not_detected`, `bus_error`, `write_error`, `stale` and `unsupported`. A sample older than 500 ms is unavailable. All observation/time fields are null when unavailable, including `detected`. Missing hardware must never be interpreted as `detected:false`. Other board targets report unsupported.
+
+Enable automatic screen control with a one-minute absence timeout:
+
+```python
+speaker.configure(presence_timeout_ms=60000)
+```
+
+Equivalent `PATCH /v1/config` body: `{"presence_timeout_ms":60000}`. Use 0 to disable, or 5,000..3,600,000 ms. This setting survives power loss. The public default is 0, so updating firmware alone preserves the previous screen behavior.
+
+While a healthy radar is available, detection wakes the selected screen and keeps it on. No detection for the configured interval turns the backlight off. This policy overrides `screen_timeout_ms` while active. Touch, buttons, explicit API wake, reply processing and alarms provide a fresh timeout, so the screen stays readable during use even without a radar detection. The selected eyes/status page and expression remain unchanged. Manual API sleep continues to take priority until touch, a button, an alarm or an explicit wake. `display.presence_control_active` means a nonzero setting and a healthy radar, even if manual sleep currently overrides it.
+
+If the radar becomes unavailable, a screen put to sleep by absence wakes and falls back to the ordinary `screen_timeout_ms` behavior. A new full grace period starts when the sensor recovers. Presence changes only the backlight; Wi-Fi, microphone capture, wake-name recognition at the connected hub and temperature sampling continue. This does not put the ESP32 into deep sleep. No sensor observations are written to flash.
+
+BOX-3 has **no built-in camera**. Its SENSOR base's infrared emitter/receiver and radar are not image sensors. The separate DOCK can accept supported USB cameras with additional USB-host software; this firmware does not expose camera images, infrared, IMU, SD-card or battery telemetry.
 
 ## GET and PATCH /v1/config
 
@@ -96,6 +129,7 @@ GET returns non-secret configuration. PATCH merges only the supplied fields, val
 | `muted` | Boolean, stops microphone upload |
 | `brightness` | LCD backlight percentage, integer 1..100, default 30 |
 | `screen_timeout_ms` | 0 for always on, or 5,000..3,600,000 ms |
+| `presence_timeout_ms` | 0 disables radar screen control (default); 5,000..3,600,000 ms of absence turns off the backlight when a healthy radar is available |
 | `default_screen` | `eyes` or `status`; default `eyes` |
 | `hub_url` | Reachable HTTP audio-hub origin, hostname/IPv4 and optional port, with no path/query/credentials |
 | `speaker_token` | Credential for the configured audio hub |

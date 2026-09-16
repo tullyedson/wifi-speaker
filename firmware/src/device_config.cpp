@@ -38,13 +38,13 @@ bool read(JsonVariantConst object, Config& output) {
     for (JsonPairConst item : object.as<JsonObjectConst>()) {
         const String key = item.key().c_str();
         bool known = false;
-        for (const char* allowed : {"type","wifi_ssid","wifi_password","hub_url","speaker_id","speaker_token","control_token","name","tags","mic_channel","mic_gain","volume","muted","brightness","screen_timeout_ms","default_screen"}) if (key == allowed) known = true;
+        for (const char* allowed : {"type","wifi_ssid","wifi_password","hub_url","speaker_id","speaker_token","control_token","name","tags","mic_channel","mic_gain","volume","muted","brightness","screen_timeout_ms","presence_timeout_ms","default_screen"}) if (key == allowed) known = true;
         if (!known || item.value().isNull()) return false;
     }
     for (const char* key : {"wifi_ssid","wifi_password","hub_url","speaker_id","speaker_token"}) if (!object[key].is<const char*>()) return false;
     for (const char* key : {"control_token","name","default_screen"}) if (!object[key].isNull() && !object[key].is<const char*>()) return false;
     if (!optional_number(object["mic_gain"]) || (!object["muted"].isNull() && !object["muted"].is<bool>())) return false;
-    for (const char* key : {"mic_channel","volume","brightness","screen_timeout_ms"}) if (!object[key].isNull() && !object[key].is<int>()) return false;
+    for (const char* key : {"mic_channel","volume","brightness","screen_timeout_ms","presence_timeout_ms"}) if (!object[key].isNull() && !object[key].is<int>()) return false;
     output = Config{};
     output.ssid = object["wifi_ssid"].as<String>(); output.password = object["wifi_password"].as<String>();
     output.hub = object["hub_url"].as<String>(); output.id = object["speaker_id"].as<String>(); output.token = object["speaker_token"].as<String>();
@@ -52,6 +52,7 @@ bool read(JsonVariantConst object, Config& output) {
     output.name = object["name"] | "Speaker"; output.default_screen = object["default_screen"] | "eyes";
     const int channel = object["mic_channel"] | 0, brightness = object["brightness"] | 30;
     const int timeout = object["screen_timeout_ms"] | 0;
+    const int presence_timeout = object["presence_timeout_ms"] | 0;
     output.volume = object["volume"] | -1; output.muted = object["muted"] | false;
     output.mic_gain = object["mic_gain"] | 1.0f;
     if (output.hub.endsWith("/")) output.hub.remove(output.hub.length() - 1);
@@ -61,6 +62,7 @@ bool read(JsonVariantConst object, Config& output) {
         || !std::isfinite(output.mic_gain) || output.mic_gain < 0.25f || output.mic_gain > 8.0f
         || output.volume < -1 || output.volume > 100 || brightness < 1 || brightness > 100
         || timeout < 0 || timeout > 3600000 || (timeout != 0 && timeout < 5000)
+        || presence_timeout < 0 || presence_timeout > 3600000 || (presence_timeout != 0 && presence_timeout < 5000)
         || output.name.isEmpty() || output.name.length() > 64
         || (output.default_screen != "eyes" && output.default_screen != "status") || !parse_hub(output.hub, host, port)) return false;
     if (!object["tags"].isNull()) {
@@ -72,6 +74,7 @@ bool read(JsonVariantConst object, Config& output) {
         }
     }
     output.mic_channel = channel; output.brightness = brightness; output.screen_timeout_ms = timeout;
+    output.presence_timeout_ms = presence_timeout;
     return true;
 }
 void write(const Config& value, JsonDocument& output, bool secrets) {
@@ -85,5 +88,6 @@ void write(const Config& value, JsonDocument& output, bool secrets) {
     output["mic_channel"] = value.mic_channel; output["mic_gain"] = value.mic_gain;
     output["volume"] = value.volume; output["muted"] = value.muted; output["brightness"] = value.brightness;
     output["screen_timeout_ms"] = value.screen_timeout_ms; output["default_screen"] = value.default_screen;
+    output["presence_timeout_ms"] = value.presence_timeout_ms;
 }
 }

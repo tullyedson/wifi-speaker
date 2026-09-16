@@ -42,7 +42,7 @@ else:
         raise SystemExit("A C++ compiler is required.")
 
 includes = [root / "tests/sensors", root / "firmware/include", headers]
-sources = [root / "tests/sensors/sensor_test.cpp", root / "firmware/src/board_sensors.cpp"]
+sources = [root / "tests/sensors/sensor_test.cpp", root / "tests/sensors/presence_test.cpp", root / "firmware/src/board_sensors.cpp"]
 with tempfile.TemporaryDirectory(prefix="speaker-sensor-tests-") as temporary:
     env["TMP"] = env["TEMP"] = temporary
     for target in ("BOARD_ESP32_S3_BOX_3", "BOARD_MUSE_LUXE"):

@@ -246,7 +246,7 @@ void device_status() {
 }
 void configure_api() {
     JsonDocument patch;
-    if (!api_body(patch, {"wifi_ssid","wifi_password","hub_url","speaker_token","control_token","name","tags","mic_channel","mic_gain","volume","muted","brightness","screen_timeout_ms","default_screen"})) return;
+    if (!api_body(patch, {"wifi_ssid","wifi_password","hub_url","speaker_token","control_token","name","tags","mic_channel","mic_gain","volume","muted","brightness","screen_timeout_ms","presence_timeout_ms","default_screen"})) return;
     if (!patch["volume"].isNull() && !integer_between(patch["volume"], 0, 100)) { api_error(400, "Volume must be 0 to 100"); return; }
     JsonDocument merged; device_config::write(config, merged, true);
     for (JsonPair item : patch.as<JsonObject>()) merged[item.key()] = item.value();
@@ -260,10 +260,11 @@ void configure_api() {
         config.name = candidate.name; config.tags = candidate.tags; config.default_screen = candidate.default_screen;
         config.volume = candidate.volume; config.mic_gain = candidate.mic_gain; config.mic_channel = candidate.mic_channel;
         config.muted = candidate.muted; config.brightness = candidate.brightness; config.screen_timeout_ms = candidate.screen_timeout_ms;
+        config.presence_timeout_ms = candidate.presence_timeout_ms;
         if (config.volume >= 0) volume = config.volume;
         microphone_gain = config.mic_gain; microphone_channel = config.mic_channel; muted = config.muted;
         if (frames) xQueueReset(frames); report_volume(); report_mute();
-        board_display::configure(config.brightness, config.screen_timeout_ms, config.default_screen);
+        board_display::configure(config.brightness, config.screen_timeout_ms, config.default_screen, config.presence_timeout_ms);
     }
     JsonDocument response; response["saved"] = true; response["restarting"] = restart; json_response(200, response);
 }
@@ -403,7 +404,7 @@ void setup() {
     configured = !deserializeJson(saved, preferences.getString("config", "{}")) && read_config(saved, config);
     microphone_gain = config.mic_gain; microphone_channel = config.mic_channel; muted = config.muted;
     if (config.volume >= 0) volume = config.volume;
-    board_display::configure(config.brightness, config.screen_timeout_ms, config.default_screen);
+    board_display::configure(config.brightness, config.screen_timeout_ms, config.default_screen, config.presence_timeout_ms);
     audio_ok = frames && jobs && results && alarm_jobs && board_audio::begin();
     board_sensors::begin();
     Serial.printf("SMART_SPEAKER %s audio=%s flash=%u psram=%u\n", board_config::firmware, audio_ok ? "ready" : "error", ESP.getFlashChipSize(), ESP.getPsramSize());
@@ -490,6 +491,7 @@ void loop() {
     color = led.Color(((color >> 16) & 255) * intensity, ((color >> 8) & 255) * intensity, (color & 255) * intensity);
     static uint32_t previous_color = 0xFFFFFFFF;
     if (board_config::led_count && color != previous_color) { led.fill(color); led.show(); previous_color = color; }
-    board_display::update(display_state, volume.load(), microphone_gain.load(), muted || playing || hub_paused ? 0 : microphone_level.load(), setup_mode ? "192.168.4.1" : WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : "Wi-Fi offline");
+    const auto presence = board_sensors::presence();
+    board_display::update(display_state, volume.load(), microphone_gain.load(), muted || playing || hub_paused ? 0 : microphone_level.load(), setup_mode ? "192.168.4.1" : WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : "Wi-Fi offline", presence.available, presence.detected);
     delay(1);
 }

@@ -1,12 +1,17 @@
 #include "board_sensors.h"
 #include "Wire.h"
+#include "Arduino.h"
 #include <cassert>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 
 uint32_t test_clock = 0;
+int radar_level = 0;
+unsigned radar_pin_reads = 0, radar_pin_setups = 0;
 SensorWire Wire1;
+void test_display_power();
+void test_presence();
 
 JsonDocument snapshot() {
     JsonDocument doc;
@@ -37,6 +42,7 @@ void convert() {
 }
 
 int main() {
+    test_display_power();
 #if defined(BOARD_ESP32_S3_BOX_3)
     reset();
     unavailable("starting");
@@ -103,11 +109,14 @@ int main() {
     test_clock += 200;
     assert(snapshot()["temperature_humidity"]["sample_age_ms"] == 200);
     std::puts("Sensor checks passed: conversion, cadence, stale data, CRC, errors, recovery and clock rollover.");
+    test_presence();
 #else
     reset();
     convert();
     unavailable("unsupported");
     assert(snapshot()["temperature_humidity"]["supported"] == false && Wire1.commands == 0);
+    assert(snapshot()["presence"]["supported"] == false && snapshot()["presence"]["detected"].isNull());
+    assert(!board_sensors::presence().available && Wire1.radar_writes.empty() && radar_pin_reads == 0 && radar_pin_setups == 0);
     std::puts("Unsupported board reports null readings without touching the sensor bus.");
 #endif
 }
